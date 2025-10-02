@@ -5,6 +5,7 @@
 .DS_Store
 .quarto
 
-# Ignore the entire data folder
-/data/
-/output/
+# Ignore _data, _output and .quarto
+/_data/
+/_output/
+/.quarto/

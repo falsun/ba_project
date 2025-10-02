@@ -1,0 +1,26 @@
+# _quarto.yml
+
+author: "Frederik Bender Bøeck-Nielsen"
+date: today
+date-format: "D. MMMM YYYY"
+bibliography: references.bib
+csl: chicago-author-date.csl
+toc: true
+toc-depth: 3
+number-sections: true
+
+format:
+  html:
+    theme:
+      light: flatly
+      dark: darkly
+    respect-user-color-scheme: true
+    code-fold: true
+    code-summary: "show code"
+    code-tools: true
+    code-link: true
+    toc-location: left
+  pdf:
+    documentclass: article
+    link-citations: true
+    geometry: "left=30mm,right=30mm,top=25mm,bottom=25mm"

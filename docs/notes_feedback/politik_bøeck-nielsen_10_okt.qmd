@@ -1,0 +1,98 @@
+---
+title: "Trusler & Normer"
+subtitle: "Analyse af Europæiske NATO-landes Forsvarsbudgetter efter Invasionen af Ukraine"
+toc: false
+number-sections: false
+editor: visual
+format:
+  pdf:
+    header-includes: |
+      \usepackage{fancyhdr}
+      \pagestyle{fancy}
+      \lhead{Ba-vejledning}
+      \chead{Frederik Bender Bøeck-Nielsen}
+      \rhead{2. oktober 2025}
+      \fancypagestyle{plain}{%
+        \fancyhf{}%
+        \lhead{Ba-vejledning}%
+        \chead{Frederik Bender Bøeck-Nielsen}%
+        \rhead{2. oktober 2025}%
+        \cfoot{\thepage}%
+      }
+      \usepackage{titlesec}
+      \titlespacing*{\section}{0pt}{1ex}{0ex}
+      \titlespacing*{\subsection}{0pt}{1ex}{0ex}
+      \titlespacing*{\subsubsection}{0pt}{1ex}{0ex}
+      \renewcommand{\arraystretch}{1.5}
+  html: {}
+---
+
+# Problemformulering
+
+*I hvilken grad forårsagede den russiske invasion af Ukraine i 2022 et strukturelt skift i europæiske NATO-landes forsvarsbudgetter, og hvilke faktorer forklarer heterogeniteten i deres reaktion?*
+
+# Forskningsdesign
+
+Projektet struktureres som en to-trins-analyse. først afdækkes *om* invasionen havde en kausal effekt på forsvarsbudgetterne (trin 1), derefter belyses *variationen* heri (trin 2).
+
+## Trin 1: Den Kausale Effekt
+
+Til estimering af den kausale effekt er det - som tidligere nævnt - ikke muligt med en standard Differences-In-Differences model. Syntetiske kontrol metoder anvendes derfor i stedet, da de er velegnede til at håndtere situationer hvor en valid kontrolgruppe ikke er tilgængelig.
+
+-   H~0~: Invasionen havde ingen signifikant effekt på Europæiske NATO landes forsvarsbudgetter.
+
+-   H~a~: Invasionen havde en signifikant positiv effekt på Europæiske NATO landes forsvarsbudgetter.
+
+### Gennemsnitlig Behandlingseffekt
+
+ASCM ([Augmented Synthetic Control Method](https://www.tandfonline.com/doi/full/10.1080/01621459.2021.1929245 "Ben-Michael, Eli, Avi Feller, and Jesse Rothstein. 2021. “The Augmented Synthetic Control Method.” Journal of the American Statistical Association 116 (536): 1789–1803. doi:10.1080/01621459.2021.1929245.")) estimerer en ATT (Average Treatment Effect on the Treated), for hvert enkelt år efter invasionen. Ved at konstruere en syntetisk kontrolgruppe, kan modellen estimere hvordan forsvarsbudgetterne ville have udviklet sig, hvis invasionen *ikke* havde fundet sted. Dermed isolerer modellen den kausale effekt af invasionen (fremfor blot at sammenligne forsvarsbudgetterne før/efter invasionen).
+
+ASCM suppleres af en SDID ([Synthetic Differences-In-Differences](https://www.aeaweb.org/articles?id=10.1257/aer.20190159)), som er en robust metode med samme formål. Hvor ASCM kan estimere en ATT for hvert enkelt post-treatment år, er SDID mere velegnet til at udregne en samlet ATT for hele post-treatment perioden. ASCM passer deraf bedre til analysens formål, da det forventes at invasionens effekt er steget for hvert år der er gået, hvorfor SDID blot anvendes til at støtte fundene fra ASCM.
+
+### Individuel Behandlingseffekt
+
+Efter analysen af den samlede effekt, anvendes GSCM ([Generalized Synthetic Control Method](https://www.cambridge.org/core/journals/political-analysis/article/generalized-synthetic-control-method-causal-inference-with-interactive-fixed-effects-models/B63A8BD7C239DD4141C67DA10CD0E4F3)), som minder meget om ASCM, men med den forskel at den estimerer en ITE (Individual Treatment Effect). Modellen kan således give et estimat for invasionens kausale effekt på hvert enkelt land. Dette gør det muligt at undersøge hvilke faktorer der påvirker, hvor meget det enkelte land har øget sit forsvarsbudget som reaktion på invasionen.
+
+## Trin 2: Forklaring af Variation
+
+Formålet med denne del af analysen er ikke blot at undersøge variationen, men at undersøge om de bagvedliggende mekanismer - der determinerer forsvarsbudgetter - har ændret sig.
+
+-   H~1~: Afstanden til Rusland har en signifikant effekt på stigninger i Europæiske NATO-landes forsvarsbudgetter.
+
+-   H2: Afstanden til NATO's 2% mål har en signifikant effekt på stigninger i Europæiske NATO-landes forsvarsbudgetter.
+
+### Forklaringsfaktorer 2014-2021
+
+For at kunne vurdere den relative betydning af en bestemt forklaringsfaktor før/efter invasionen, er det nødvendigt først at kortlægge hvilke underliggende determinanter der drev udviklingen i forsvarsbudgetterne inden invasionen. Dette gøres ved at køre en TWFE Panel Data model på pre-treatment perioden (2014-2021). Formålet med denne model er at kortlægge hvilke faktorer der havde en statistisk signifikant effekt inden invasionen.
+
+### Forklaringsfaktorer 2022-2024
+
+Efter koefficienterne for forklaringsfaktorerne i pre-treatment perioden er kortlagt, køres en tværsnits-OLS model som bruger ITE estimaterne fra GSCM modellen fra trin 1 som sine afhængige variabler. Denne model estimerer således hvilke faktorer der har en statistisk signifikant sammenhæng med invasionens isolerede kausale effekt. Da modellerne er forskellige og anvender forskellige afhængige variabler, anvendes [standardiserede beta koefficienter](https://en.wikipedia.org/wiki/Standardized_coefficient) for at kunne sammenligne koefficienterne fra hhv. TWFE Panel Data modellen og tværsnits-OLS modellen. På den måde bliver det muligt at analysere om forskellige forklaringsfaktorer er blevet mere eller mindre afgørende ift. at fremme eller hæmme øgede forsvarsudgifter.
+
+## Typologier
+
+Som supplement udvikles en 2x2 typologi. Denne klassificerer landene baseret på deres efterlevelse af NATO's to centrale mål (2% af BNP til forsvar; 20% af budgettet til udstyr) i hhv. 2021 og 2024. Dette gør det muligt at klarlægge, om - og hvordan - landene har bevæget sig mellem kategorier som "Fuld efterlevelse", "Symbolske aktører", "Fokus på modernisering" og "Efternølere".
+
+|                        |                            |                         |
+|:---------------------:|:------------------------:|:----------------------:|
+|                        |     Opfylder 20% målet     | Opfylder ikke 20% målet |
+|   Opfylder 2% målet    |     **Mønsterelever**      |  **Symbolske aktører**  |
+| Opfylder ikke 2% målet | **Effektive Modernisører** |     **Efternølere**     |
+
+: Klassificering af NATO-lande baseret på deres efterlevelse af to centrale forsvarsmål.
+
+# Norm Udfordringer
+
+Den andel af forsvarsbudgetterne der anvendes på militært udstyr (equip_share), er desværre ikke mulig at inddrage i trin 1 af analysen, da dataen kun er tilgængelig for NATO-lande (mangler data for donor-puljen). Desuden er det gået op for mig at der sandsynligvis vil være post-treatment bias, hvis equip_share anvendes som kontrol i modellerne i trin 2 (hvordan pengene allokeres er sandsynligvis påvirket af hvor mange penge der er til rådighed). En anden tilgang er at køre en ekstra tværsnits-OLS model (trin 2) med equip_share som afhængig variabel. På den måde kan tværsnits-modellerne sammenlignes, for at se om det er de samme drivkræfter der forklarer forsvarsbudget og allokering til militært udstyr. Dette besvarer dog ikke rigtig om der er tale om norm-efterlevelse eller ej. Jeg leder derfor stadig efter stærke alternativer til at operationalisere "norm-efterlevelse". Muligheder inkluderer:
+
+-   Deltagelse i NATO missioner: Hvor ofte et land har deltaget og hvor mange soldater de har bidraget med. Dette er måske den stærkeste markør, da det er et konkret mål for landenes dedikation til NATO samarbejdet.
+-   Demokrati: Denne variable er allerede med i min analyse som kontrol-variabel (lib_dem variablen fra [V-Dem](https://v-dem.net/)), så det er den letteste at bruge, men jeg ved ikke hvor stærk en indikator den reelt er. Logikken er at der er sammenhæng mellem hvor demokratisk et land er og hvor tilbøjeligt det er til at støtte op om internationale organisationer.
+-   Offentlig mening: Målinger om befolkningens holdning til NATO samarbejdet.
+-   Supplerende kval-analyse: Undersøge udsagn fra politiske ledere ifm. udmeldinger om øgede forsvarsudgifter. Tales der fx om "national sikkerhed" eller "ansvar for alliancer"
+
+# Spørgsmål
+
+1.  Forslag til hvordan jeg måler "norm-efterlevelse" (se [Norm Udfordringer])?
+2.  Til min forundring har jeg haft store problemer med at finde data om ideologisk placering på højre-venstre skala for min sample af lande. [V-Dem](https://v-dem.net/)'s ideologi variabel går kun frem til 2019, [ParlGov](https://www.parlgov.org/) går "kun" frem til midten af 2023, og har ikke data for præsidentstyrer (og er desuden [lukket ned](https://www.parlgov.org/2024/10/01/retiring-from-parlgov/)). [The Manifesto Project](https://manifesto-project.wzb.eu/) måler de enkelte partiers ideologi, men har ikke data om hvorvidt et parti er en del af en regering eller ej. Indtil videre har min løsning været at kombinere The Manifesto Project, ParlGov og manuel research, men det har været et kæmpe arbejde - specielt ift. at der er tale om en enkelt (omend potentielt vigtig) kontrolvariabel - og jeg mangler stadig pålidelig data for 2024. Jeg har overvejet at bruge LOCF ([Last Observation Carried Forward](https://methods.sagepub.com/ency/edvol/encyc-of-research-design/chpt/last-observation-carried-forward)), og simpelthen kopiere alle landenes 2023 observation frem til 2024. Dette ville være en simpel løsning, men jeg ved dog at mange lande har haft valg i 2024, og det er deraf måske ikke den mest forsvarlige tilgang.
+    -   Så, hvis nogen har forslag til hvad jeg gør, eller kender til pålidelige databaser over samlet ideologi for regeringenskoalitioner, regeringssammensætninger, og/eller individuelle partier, så sig endelig til!
+3.  Tanker om min typologi matrix? Giver den mening? Tilføjer den værdi til analysen?
