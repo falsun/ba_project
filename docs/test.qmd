@@ -22,4 +22,6 @@ Short codes can also be inserted directly in the text: I'd like to order `{r} pr
 
 Someone else who might like some cheesecake is @waltz2000.
 
+this is a spelledd wrong.
+
 # References {.unnumbered}

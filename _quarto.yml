@@ -1,15 +1,50 @@
-# _quarto.yml
+# ===================================================================
+# Bachelor's Project Quarto Configuration
+# ===================================================================
 
+# -- UNIVERSAL SETTINGS --
 author: "Frederik Bender Bøeck-Nielsen"
 date: today
-date-format: "D. MMMM YYYY"
+date-format: D. MMMM YYYY
+lang: en-GB
+
+# -- REFERENCES --
 bibliography: references.bib
 csl: chicago-author-date.csl
+citeproc: true
+link-citations: true
+
+# -- TABLE OF CONTENTS --
 toc: true
 toc-depth: 3
-number-sections: true
+toc-title: Contents
+toc-indent: 1.6em
 
+# -- SECTIONS --
+number-sections: true
+number-depth: 3
+
+# -- PAGE LAYOUT --
+papersize: a4
+justify: true
+hyphenate: true
+linestretch: 1.45
+
+# -- Typst Settings --
 format:
+  typst:
+    template-partials:
+    - ../definitions.typ
+    font-paths: ../fonts/
+    columns: 2
+    margin:
+      top: 3.6cm
+      bottom: 4.2cm
+      x: 3.6cm
+    fontsize: 12pt
+    section-numbering: 1.1.1.
+
+# -- HTML Settings --
   html:
     theme:
       light: flatly
@@ -20,7 +55,13 @@ format:
     code-tools: true
     code-link: true
     toc-location: left
+
+  # -- PDF (via LaTeX) Settings --
   pdf:
     documentclass: article
-    link-citations: true
-    geometry: "left=30mm,right=30mm,top=25mm,bottom=25mm"
+    geometry: "left=30.60mm,right=30.60mm,top=30.60mm,bottom=40.20mm"
+    mainfont: "IBM Plex Serif"
+    sansfont: "IBM Plex Sans"
+    monofont: "IBM Plex Mono"
+    mathfont: "IBM Plex Math"
+    fontsize: 12pt
