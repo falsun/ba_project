@@ -4,23 +4,26 @@
 #   Script:       01_prepare_ideology_data.R
 #   Author:       Frederik Bender Bøeck-Nielsen
 #   Date:         2025-09-29
-#   Description:  This script creates a duration-weighted annual government 
-#                 ideology panel dataset. It loads data from the ParlGov and 
-#                 Manifesto Project databases, integrates manual data 
-#                 corrections, calculates cabinet-level ideology scores using 
-#                 a primary and fallback method, and transforms the event-level 
+#   Description:  This script creates a duration-weighted annual government
+#                 ideology panel dataset. It loads data from the ParlGov and
+#                 Manifesto Project databases, integrates manual data
+#                 corrections, calculates cabinet-level ideology scores using
+#                 a primary and fallback method, and transforms the event-level
 #                 data into a final annual panel.
 #
 # ---------------------------------------------------------------------------- #
 
 
 # 1. SETUP: LOAD PACKAGES AND DATA -------------------------------------------
-
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(
-  here, tidyverse, readxl, lubridate, manifestoR, countrycode
+  here,
+  tidyverse,
+  readxl,
+  lubridate,
+  manifestoR,
+  countrycode
 )
-
 
 # 2. DEFINE ANALYSIS SCOPE & LOAD DATA ---------------------------------------
 
@@ -89,13 +92,13 @@ all_partisan_govs_events <- bind_rows(
     # Identify partisan cabinet parties from ParlGov.
     parties_to_score <- parlgov_clean %>%
       filter(caretaker == 0, !is.na(cmp_final), cabinet_party == 1, seats > 0)
-    
+
     # Primary Method: Find latest manifesto dated *before* cabinet start.
     perfect <- parties_to_score %>%
       inner_join(manifesto_clean, by = join_by(cmp_final == cmp, start_date >= manifesto_date)) %>%
       group_by(cabinet_id, party_id) %>%
       slice_max(order_by = manifesto_date, n = 1, with_ties = FALSE)
-    
+
     # Combine with fallback method for parties with no preceding manifesto.
     bind_rows(
       perfect,
@@ -111,7 +114,7 @@ all_partisan_govs_events <- bind_rows(
       summarise(weighted_ideology_rile = weighted.mean(rile, w = seats, na.rm = TRUE), .groups = 'drop') %>%
       rename(country_name = country_name.x)
   },
-  
+
   # --- Presidential Systems ---
   .y = presidential_data_raw %>%
     mutate(start_date = as.Date(start_date), cmp = as.numeric(manifesto_party_id)) %>%
@@ -123,7 +126,7 @@ all_partisan_govs_events <- bind_rows(
     rename(weighted_ideology_rile = rile) %>%
     mutate(cabinet_id = 99900 + row_number()) %>%
     select(cabinet_id, country_name, start_date, weighted_ideology_rile)
-  
+
 ) %>%
   # Filter out any events where an ideology score could not be calculated.
   filter(!is.na(weighted_ideology_rile) & !is.nan(weighted_ideology_rile))
