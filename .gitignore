@@ -6,7 +6,7 @@
 .quarto
 
 # Ignore _data, _output and .quarto
-/_data/
+/data/
 /_output/
 /.quarto/
 

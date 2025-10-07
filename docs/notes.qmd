@@ -1,8 +1,7 @@
 ---
 title: "notes"
 subtitle: "ba_thesis"
-format: html
-editor: visual
+format: typst
 ---
 
 # Mastering ’Metrics – The Path from Cause to Effect (Angrist & Pischke 2015)

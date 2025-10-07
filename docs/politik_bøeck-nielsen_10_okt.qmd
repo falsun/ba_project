@@ -3,28 +3,28 @@ title: "Trusler & Normer"
 subtitle: "Analyse af Europæiske NATO-landes Forsvarsbudgetter efter Invasionen af Ukraine"
 toc: false
 number-sections: false
-editor: visual
-format:
-  pdf:
-    header-includes: |
-      \usepackage{fancyhdr}
-      \pagestyle{fancy}
-      \lhead{Ba-vejledning}
-      \chead{Frederik Bender Bøeck-Nielsen}
-      \rhead{2. oktober 2025}
-      \fancypagestyle{plain}{%
-        \fancyhf{}%
-        \lhead{Ba-vejledning}%
-        \chead{Frederik Bender Bøeck-Nielsen}%
-        \rhead{2. oktober 2025}%
-        \cfoot{\thepage}%
-      }
-      \usepackage{titlesec}
-      \titlespacing*{\section}{0pt}{1ex}{0ex}
-      \titlespacing*{\subsection}{0pt}{1ex}{0ex}
-      \titlespacing*{\subsubsection}{0pt}{1ex}{0ex}
-      \renewcommand{\arraystretch}{1.5}
-  html: {}
+format: typst
+#format:
+  #pdf:
+    #header-includes: |
+      #\usepackage{fancyhdr}
+      #\pagestyle{fancy}
+      #\lhead{Ba-vejledning}
+      #\chead{Frederik Bender Bøeck-Nielsen}
+      #\rhead{2. oktober 2025}
+      #\fancypagestyle{plain}{%
+        #\fancyhf{}%
+        #\lhead{Ba-vejledning}%
+        #\chead{Frederik Bender Bøeck-Nielsen}%
+        #\rhead{2. oktober 2025}%
+        #\cfoot{\thepage}%
+      #}
+      #\usepackage{titlesec}
+      #\titlespacing*{\section}{0pt}{1ex}{0ex}
+      #\titlespacing*{\subsection}{0pt}{1ex}{0ex}
+      #\titlespacing*{\subsubsection}{0pt}{1ex}{0ex}
+      #\renewcommand{\arraystretch}{1.5}
+  #html: {}
 ---
 
 # Problemformulering
