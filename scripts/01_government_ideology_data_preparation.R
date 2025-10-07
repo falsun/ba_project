@@ -15,6 +15,8 @@
 
 
 # 1. SETUP: LOAD PACKAGES AND DATA -------------------------------------------
+
+# pacman for installing and loading packages
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(
   here,
