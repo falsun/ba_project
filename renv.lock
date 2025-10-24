@@ -5,6 +5,10 @@
       {
         "Name": "CRAN",
         "URL": "https://packagemanager.posit.co/cran/latest"
+      },
+      {
+        "Name": "CRANextra",
+        "URL": "http://www.stats.ox.ac.uk/pub/RWin"
       }
     ]
   },

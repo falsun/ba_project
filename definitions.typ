@@ -1,4 +1,4 @@
-// File: typst-styling.typ
+// File: definitions.typ
 
 #show text: set text(
   font: ("IBM Plex Serif"),

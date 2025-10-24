@@ -1,0 +1,115 @@
+---
+title: "Trusler & Normer"
+subtitle: "Analyse af Europæiske NATO-landes Forsvarsbudgetter efter Invasionen af Ukraine"
+format: typst
+editor: visual
+toc: false
+number-sections: false
+---
+
+```{r}
+#| include: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  here,
+  dplyr,
+  gtsummary,
+  psych,
+  gt,
+  tibble
+)
+
+# Set a global option to prevent R from using scientific notation for numbers
+options(scipen = 999)
+
+
+# 2. DATA PREPARATION --------------------------------------------------------
+
+# Load the master dataset
+master_data <- readRDS(here("data", "processed", "master_dataset_v1.rds"))
+
+```
+
+# Deskriptiv statistisk
+
+Kommaer og punktummer følger engelske standard (punktum for decimaler).
+
+```{r}
+#| echo: false
+
+# Filter for the correct sample (European NATO members) and the pre-treatment period,
+# then rescale variables for readability.
+desc_data <- master_data %>%
+  filter(
+    group == "treatment",
+    year >= 2014 & year <= 2021
+  ) %>%
+  # Rescale large numbers to make tables more readable
+  mutate(
+    pop = pop / 1000000,        # From units to millions
+    gdp_cap = gdp_cap / 1000,    # From units to thousands
+    dist_rus = dist_rus / 1000   # From km to thousands of km
+  )
+
+
+# 3. TABLE 1: SUMMARY STATISTICS (gtsummary) -------------------------------
+# This table is ideal for the main body of your thesis, providing a clean
+# overview of the sample's characteristics.
+
+# Create the summary table
+descriptive_table_summary <- desc_data %>%
+  # Select variables for the table, excluding identifiers
+  select(
+    milex_gdp_sipri, gdp_cap, gdp_growth, debt_gdp, un_rate, trade_rus,
+    safe_sec, lib_dem, annual_weighted_rile, pop, dist_rus
+  ) %>%
+  tbl_summary(
+    label = list(
+      milex_gdp_sipri ~ "Forsvarsbudget (% af BNP)",
+      gdp_cap ~ "BNP per indbygger ($1,000)",
+      gdp_growth ~ "BNP vækst (%)",
+      debt_gdp ~ "Statsgæld (% af BNP)",
+      un_rate ~ "Arbejdsløshed (%)",
+      trade_rus ~ "Handel med Rusland (% of BNP)",
+      safe_sec ~ "Sikkerhedsindeks (1-5)",
+      lib_dem ~ "Demokrati indeks (0-1)",
+      annual_weighted_rile ~ "Regeringsideologi indeks (-100-100)",
+      pop ~ "Population (mio.)",
+      dist_rus ~ "Afstand til Rusland (1,000 km)"
+    ),
+    statistic = all_continuous() ~ "{mean} ({sd})",
+    missing = "no",
+    digits = all_continuous() ~ 2
+  ) %>%
+  # Modify the header to clearly state the sample
+  modify_header(
+    label ~ "**Variabel**",
+    stat_0 ~ "**Gennemsnit (Standard afvigelse)**"
+  ) %>%
+  modify_caption("**Table 1: Descriptive Statistics of Sample (Averages, 2014-2021)**")
+
+# Display the summary table
+descriptive_table_summary
+
+```
+
+# Fremhævede resultater af interaktionsmodel (post treatment x dist_rus)
+
+Outcome variabel milex_gdp_sipri er også log-transformeret.
+
+| Variabel                 | Estimat       | Standardfejl |
+|:-------------------------|:--------------|:-------------|
+| BNP per indbygger (log)  | -0.291307     | (0.282600)   |
+| BNP vækst                | -0.002634     | (0.005927)   |
+| Statsgæld                | -0.001869     | (0.002063)   |
+| Arbejdsløshed            | 0.020370\*    | (0.008358)   |
+| Sikkerhedsindeks         | -0.248426     | (0.131115)   |
+| Demokrati indeks         | -0.050495     | (0.232024)   |
+| Regeringsideologi indeks | 0.000510      | (0.000942)   |
+| befolkningstal (log)     | -2.609352\*\* | (0.878009)   |
+| Interaktionsled          | -0.000112\*\* | (0.000041)   |
+
+Estimeret gennemsnitlig kausal effekt (ATT) i log point: -0.2138
+
+Approximeret ATT som procentstigning: -19.25 %

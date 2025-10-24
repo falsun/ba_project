@@ -1,0 +1,11 @@
+---
+title: "Untitled"
+format: typst
+editor: visual
+---
+
+Antagelsen om parallele trends
+
+![An overview of the data sources and the raw comparison between the original treatment and control groups.](../output/figure_1_overview.pdf){#fig-overview width="100%"}
+
+![An exploration of heterogeneity within the European NATO sample, showing trends by historical, geographical, and threat-based groupings.](../output/figure_2_heterogeneity.pdf){#fig-heterogeneity width="100%"}

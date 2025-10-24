@@ -1,0 +1,99 @@
+---
+title: "Untitled"
+format: typst
+editor: visual
+---
+
+..
+
+```{r}
+#| echo: false
+
+# ---
+#
+# Project:      NATO Defence Spending Bachelor's Thesis
+# Script:       02_causal_model.R
+# Author:       Frederik Bender Bøeck-Nielsen (with Gemini)
+# Date:         2025-10-08
+# Description:  This script estimates the causal effect of the 2022 Ukraine
+#               invasion on European NATO military spending using a Two-Way
+#               Fixed Effects (TWFE) "dose-response" model.
+#
+# ---
+
+
+# 1. SETUP: LOAD LIBRARIES ---------------------------------------------------
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  here,
+  fixest,
+  dplyr
+)
+
+# Prevent scientific notation in outputs
+options(scipen = 999)
+
+
+# 2. DATA PREPARATION --------------------------------------------------------
+
+# Load the processed dataset
+master_data <- readRDS(here("data", "processed", "master_dataset_v1.rds"))
+
+# Filter for the correct sample: European NATO members only
+master_data <- master_data %>%
+  filter(group == "treatment")
+
+# Create a time-invariant variable for pre-treatment trade dependency (2021)
+# to avoid post-treatment bias.
+trade_2021_df <- master_data %>%
+  filter(year == 2021) %>%
+  select(iso3c, trade_rus_2021 = trade_rus)
+
+master_data <- master_data %>%
+  left_join(trade_2021_df, by = "iso3c")
+
+
+# 3. RUN THE CAUSAL MODEL ----------------------------------------------------
+
+# This is the core analysis using a two-way fixed effects regression.
+# The key variable is the interaction term 'post_treat * dist_rus', which
+# tests if the post-invasion effect changes with distance from Russia.
+model <- feols(milex_gdp_sipri ~ post_treat * dist_rus + gdp_cap + gdp_growth
+               + debt_gdp + un_rate + trade_rus_2021 + safe_sec + lib_dem
+               + annual_weighted_rile + pop + post_com + border_rus_blr
+               | iso3c + year,
+               data = master_data)
+
+
+# 4. VIEW AND INTERPRET RESULTS --------------------------------------------
+
+# Print a publication-quality table of the model results.
+# In an interactive RStudio session, this will render in the "Viewer" pane.
+etable(model)
+
+# INTERPRETATION GUIDE:
+# Look for the 'post_treat:dist_rus' coefficient in the output.
+# A significant and NEGATIVE coefficient supports the hypothesis: as distance
+# from Russia increases, the post-invasion increase in military spending gets smaller.
+
+
+# 5. CALCULATE AVERAGE TREATMENT EFFECT (ATT) ------------------------------
+
+# This section calculates the overall average effect for the treated group.
+treated_observations <- master_data %>% filter(post_treat == 1)
+
+# Predict factual outcomes (with the treatment effect)
+predicted_factual <- predict(model, newdata = treated_observations)
+
+# Predict counterfactual outcomes (as if the treatment's amplifying effect didn't happen)
+counterfactual_observations <- treated_observations %>% mutate(post_treat = 0)
+predicted_counterfactual <- predict(model, newdata = counterfactual_observations)
+
+# The ATT is the average of the differences between factual and counterfactual predictions
+effects <- predicted_factual - predicted_counterfactual
+ATT <- mean(effects, na.rm = TRUE)
+
+print(paste("Estimated Average Causal Effect (ATT) on Military Spending (% of GDP):", round(ATT, 4)))
+
+```

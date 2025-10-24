@@ -3,9 +3,13 @@
 # ===================================================================
 
 # -- UNIVERSAL SETTINGS --
-author: "Frederik Bender Bøeck-Nielsen"
-date: today
-date-format: D. MMMM YYYY
+author:
+  - name: Frederik Bender Bøeck-Nielsen
+    email: lzq867@alumni.ku.dk
+    affiliation:
+    - name: Department of Political Science - University of Copenhagen
+date: last-modified
+date-format: D. MMMM, YYYY
 lang: en-GB
 
 # -- REFERENCES --
@@ -24,6 +28,7 @@ toc-indent: 1.6em
 number-sections: true
 number-depth: 3
 
+
 # -- PAGE LAYOUT --
 papersize: a4
 justify: true
@@ -36,13 +41,17 @@ format:
     template-partials:
     - ../definitions.typ
     font-paths: ../fonts/
-    columns: 2
+    columns: 1
     margin:
-      top: 3.6cm
-      bottom: 4.2cm
-      x: 3.6cm
+      top: 2.88cm
+      bottom: 3.48cm
+      x: 2.88cm
     fontsize: 12pt
     section-numbering: 1.1.1.
+    include-in-header:
+      - text: |
+          #show link: set text(fill: rgb(0, 0, 255))
+          #show ref: set text(fill: rgb(0, 0, 255))
 
 # -- HTML Settings --
   html:

@@ -1,17 +1,40 @@
 ---
 title: 'Typst in Quarto:'
 subtitle: "Testing out the Typst features for rendering and formatting PDF files"
+keywords: "Metaphysics"
 abstract: "Joaquin Phoenix was gazed by MTV for luck. A wizard’s job is to vex chumps quickly in fog. Watch Jeopardy!, Alex Trebek's fun TV quiz game. Woven silk pyjamas exchanged for blue quartz. Brawny gods just flocked up to quiz and vex him. Adjusting quiver and bow, Zompyc[1] killed the fox. My faxed joke won a pager in the cable TV quiz show. Amazingly few discotheques provide jukeboxes. My girl wove six dozen plaid jackets before she quit. Six big devils from Japan quickly forgot how to waltz. Big July earthquakes confound zany experimental vow. Foxy parsons quiz and cajole the lovably dim wiki-girl. Have a pick: twenty six letters - no forcing a jumbled quiz! Crazy Fredericka bought many very exquisite opal jewels. Sixty zippers were quickly picked from the woven jute bag. A quick movement of the enemy will jeopardize six gunboats."
 format: typst
 ---
 
-# Header
+{{< pagebreak >}}
 
-abcdefghijklmnopqrstuvwxyzæøåabcdefghijklmnopqrstuvwxyzæøåabcdefghi *The* *quick*, **brown** fox jumps over a lazy dog. *DJs flock by when MTV ax quiz prog*. Junk MTV **quiz graced by fox whelps**. Bawds jog, ***flick quartz, vex nymphs***. Waltz, bad nymph, for quick jigs vex [@waltz2000]! Fox nymphs grab quick-jived waltz. Brick quiz whangs jumpy veldt fox. Bright vixens jump; dozy fowl quack. Quick wafting zephyrs vex bold Jim. Quick zephyrs blow, vexing daft Jim. Sex-charged fop blew my junk TV quiz. How quickly daft jumping zebras vex. Two driven jocks help fax my big quiz. Quick, Baz, get my woven flax jodhpurs! "Now fax quiz Jack! " my brave ghost pled. Five quacking zephyrs jolt my wax bed. $2+5$ Flummoxed by job, kvetching W. zaps Iraq. Cozy sphinx waves quart jug of bad milk. A very bad quack might jinx zippy fowls. Few quips galvanized the mock jury box. Quick brown dogs jump over the lazy fox. This is some text
+# Introduction {#sec-introduction}
 
-$$a_i + ((5 * 2\beta P^4)/(36.5*\gamma_i))$$
+```{r}
+#| echo: false
+#| label: tbl-iris
+#| tbl-cap: "Iris Data"
+
+library(knitr)
+kable(head(iris))
+```
+
+see @tbl-iris. See @tbl-letters. abcdefghijklmnopqrstuvwxyzæøåabcdefghijklmnopqrstuvwxyzæøåabcdefghi *The* *quick*, **brown** fox jumps[^1] over a lazy dog @lst-cheeseburger. *DJs flock by when MTV ax quiz prog*. See @sec-introduction Junk MTV **quiz graced by fox whelps**. [Bawds jog]{.smallcaps}, ***flick quartz, vex nymphs***. Waltz, bad nymph, for quick jigs vex [@waltz2000]! Fox nymphs[^2] grab quick-jived waltz. Brick quiz whangs jumpy veldt fox. Bright vixens jump; dozy fowl quack. Quick wafting zephyrs vex bold Jim. [Quarto](https://quarto.org) Quick zephyrs blow<!--# this is a comment, it wont get rendered -->, vexing daft Jim[^3]. Sex-charged fop blew my junk TV quiz. How quickly daft jumping zebras vex. Two driven jocks help fax my big quiz[References](#sec-introduction "dadgadfg"). Quick, Baz, get my woven flax jodhpurs! "Now fax quiz Jack! " my brave ghost pled. Five quacking zephyrs jolt my wax bed. $2+5$ Flummoxed by job, kvetching W. zaps Iraq. See equation (@eq-regression) Cozy sphinx waves quart jug of bad milk. A very bad quack might jinx zippy fowls. Few quips galvanized the mock jury box. @tbl-letters jump over the lazy fox. This is some text
+
+[^1]: this is a footnote
+
+[^2]: nymphs are aquatic girly girly creates, hehe. For more see [nymps](https://en.wikipedia.org/wiki/Nymph)
+
+[^3]: hehe
+
+$$a_i + ((5 * 2\beta P^4)/(36.5*\gamma_i))$$ {#eq-regression}
 
 ```{r filename="test.R"}
+#| label: cheeseburger
+#| echo: true
+#| lst-cap: cheeseburger
+#| lst-label: lst-cheeseburger
+#| output: asis
 
 # Create cheeseburger variable
 cheeseburger <- 5+7
@@ -25,9 +48,29 @@ Short codes can also be inserted directly in the text: I'd like to order `{r} pr
 
 ## Subheader
 
+| Col1 | Col2 | Col3 |
+|------|------|------|
+| A    | B    | C    |
+| E    | F    | G    |
+| A    | G    | G    |
+
+: This is a table. {#tbl-letters}
+
 Sixty zippers were quickly picked from the woven jute bag. A quick movement of the enemy will jeopardize six gunboats. All questions asked by five watch experts amazed the judge. Jack quietly moved up front and seized the big ball of wax. The quick, brown fox jumps over a lazy dog. DJs flock by when MTV ax quiz prog. Junk MTV quiz graced by fox whelps. Bawds jog, flick quartz, vex nymphs. Waltz, bad nymph, for quick jigs vex! Fox nymphs grab quick-jived waltz. Brick quiz whangs jumpy veldt fox. Bright vixens jump; dozy fowl quack. Quick wafting zephyrs vex bold Jim. Quick zephyrs blow, vexing daft Jim. Sex-charged fop blew my junk TV quiz. How quickly daft jumping zebras vex. Two driven jocks help fax my big quiz. Quick, Baz, get my woven flax jodhpurs! "Now fax quiz Jack! " my brave ghost pled.
 
+-   unordered list
+    -   sub-item 1
+    -   sub-item 2
+        -   sub-sub-item 1
+
 Five quacking zephyrs jolt my wax bed. Flummoxed by job, kvetching W. zaps Iraq. Cozy sphinx waves quart jug of bad milk. A very bad quack might jinx zippy fowls. Few quips galvanized the mock jury box. Quick brown dogs jump over the lazy fox. The jay, pig, fox, zebra, and my wolves quack! Blowzy red vixens fight for a quick jump. Joaquin Phoenix was gazed by MTV for luck. A wizard’s job is to vex chumps quickly in fog. Watch "Jeopardy! ", Alex Trebek's fun TV quiz game. Woven silk pyjamas exchanged for blue quartz. Brawny gods just flocked up to quiz and vex him. Adjusting quiver and bow, Zompyc\[1\] killed the fox. My faxed joke won a pager in the cable TV quiz show. Amazingly few discotheques provide jukeboxes. My girl wove six dozen plaid jackets before she quit. Six big devils from Japan quickly forgot how to waltz.
+
+1.  ordered list
+2.  item 2
+    i)  sub-item
+        A.  sub-sub-item 1
+    ii) sub-ite
+        (a) sdfasdf
 
 Big July earthquakes confound zany experimental vow. Foxy parsons quiz and cajole the lovably dim wiki-girl. Have a pick: twenty six letters - no forcing a jumbled quiz! Crazy Fredericka bought many very exquisite opal jewels. Sixty zippers were quickly picked from the woven jute bag. A quick movement of the enemy will jeopardize six gunboats. All questions asked by five watch experts amazed the judge. Jack quietly moved up front and seized the big ball of wax. The quick, brown fox jumps over a lazy dog. DJs flock by when MTV ax quiz prog. Junk MTV quiz graced by fox whelps. Bawds jog, flick quartz, vex nymphs. Waltz, bad nymph, for quick jigs vex! Fox nymphs grab quick-jived waltz. Brick quiz whangs jumpy veldt fox. Bright vixens jump; dozy fowl quack. Quick wafting zephyrs vex bold Jim.
 
@@ -78,3 +121,14 @@ All questions asked by five watch experts amazed the judge. Jack quietly moved u
 Few quips galvanized the mock jury box. Quick brown dogs jump over the lazy fox. The jay, pig, fox, zebra, and my wolves quack! Blowzy red vixens fight for a quick jump. Joaquin Phoenix was gazed by MTV for luck. A wizard’s job is to vex chumps quickly in fog. Watch "Jeopardy! ", Alex Trebek's fun TV quiz game. Woven silk pyjamas exchanged for blue quartz. Brawny gods just flocked up to quiz and vex him. Adjusting quiver and bow, Zompyc\[1\] killed the fox. My faxed joke won a pager in the cable TV quiz show. Amazingly few discotheques provide jukeboxes. My girl wove six dozen plaid jackets before she quit. Six big devils from Japan quickly forgot how to waltz. Big July earthquakes confound zany experimental vow. Foxy parsons quiz and cajole the lovably dim wiki-girl. Have a pick: twenty six letters - no forcing a jumbled quiz! Crazy Fredericka bought many very exquisite opal jewels. Sixty zippers were quickly picked from the woven jute bag. A quick movement of the enemy will jeopardize six gunboats. All questions asked by five watch experts amazed the judge. Jack quietly moved up front and seized the big ball of wax. The quick, brown fox jumps over a lazy dog. DJs flock by when MTV ax quiz prog. Junk MTV quiz graced by fox whelps. Bawds jog, flick quartz, vex nymphs.
 
 # References
+
+::: {#refs}
+:::
+
+# Acknowledgments
+
+I am grateful for the insightful comments offered by the anonymous peer reviewers at Books & Texts. The generosity and expertise of one and all have improved this study in innumerable ways and saved me from many errors; those that inevitably remain are entirely my own responsibility.
+
+{{< pagebreak >}}
+
+# Appendix

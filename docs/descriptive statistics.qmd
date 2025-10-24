@@ -1,0 +1,182 @@
+---
+title: "Testing code chunks"
+format: typst
+editor: visual
+toc: false
+---
+
+There should be an invisible code chunk here that loads the packages and the dataset.
+
+```{r}
+#| include: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  here,
+  gtsummary,
+  dplyr,
+  knitr,
+  psych,
+  gt,
+  tibble
+)
+
+master_data <- readRDS(here("data", "processed", "master_dataset_v1.rds"))
+
+```
+
+Below this line there should be a descriptive statistics table.
+
+```{r}
+#| echo: false
+  
+# Trin 3: Forbered data til tabellen
+desc_data_avg <- master_data %>%
+  filter(year >= 2014 & year <= 2021) %>%
+  group_by(iso3c, group) %>%
+  summarise(
+    milex_gdp_sipri = mean(milex_gdp_sipri, na.rm = TRUE),
+    gdp_cap = mean(gdp_cap, na.rm = TRUE),
+    gdp_growth = mean(gdp_growth, na.rm = TRUE),
+    debt_gdp = mean(debt_gdp, na.rm = TRUE),
+    un_rate = mean(un_rate, na.rm = TRUE),
+    trade_rus = mean(trade_rus, na.rm = TRUE),
+    safe_sec = mean(safe_sec, na.rm = TRUE),
+    lib_dem = mean(lib_dem, na.rm = TRUE),
+    annual_weighted_rile = mean(annual_weighted_rile, na.rm = TRUE),
+    pop = mean(pop, na.rm = TRUE),
+    dist_rus = mean(dist_rus, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  # --- NYT TRIN TILFØJET HER: Omskrivning af variable ---
+  # Vi dividerer de store tal for at gøre dem mere læselige.
+  mutate(
+    pop = pop / 1000000, # Fra enheder til millioner
+    gdp_cap = gdp_cap / 1000, # Fra enheder til tusinder
+    dist_rus = dist_rus / 1000, # Fra km til tusinder af km
+  )
+
+# Trin 4: Generer den deskriptive statistiktabel med gtsummary
+descriptive_table_avg <- desc_data_avg %>%
+  select(-iso3c) %>%
+  tbl_summary(
+    by = group,
+    label = list( # Opdaterede labels for at afspejle de nye enheder
+      milex_gdp_sipri ~ "milex_gdp_sipri (%)",
+      gdp_cap ~ "gdp_cap ($1,000)",
+      gdp_growth ~ "gdp_growth (%)",
+      debt_gdp ~ "debt_gdp (%)",
+      un_rate ~ "un_rate (%)",
+      trade_rus ~ "trade_rus_gdp (%)",
+      safe_sec ~ "safe_sec (0 - 5 index)",
+      lib_dem ~ "lib_dem (0 - 1 index)",
+      annual_weighted_rile ~ "rile (-100 - 100 index)",
+      pop ~ "pop (millions)",
+      dist_rus ~ "dist_rus (1,000 km)"
+    ),
+    statistic = all_continuous() ~ "{mean} ({sd})",
+    missing = "no",
+    digits = all_continuous() ~ 2
+  ) %>%
+  add_p() %>%
+  add_significance_stars %>%
+
+  # --- KODE OPDATERET FOR HEADER ---
+  # Vi fjerner den øverste header og bygger en ny, ren header-række op fra bunden.
+  modify_spanning_header(everything() ~ NA) %>%
+  modify_header(
+    label ~ "",
+    stat_1 ~ "**control** (n = {n})",
+    stat_2 ~ "**treatment** (n = {n})",
+    p.value ~ "**p-value**"
+  ) %>%
+
+  # --- KODE OPDATERET FOR FODNOTER ---
+  # Vi fletter de to p-værdi-fodnoter sammen til én og fjerner den overflødige.
+  modify_footnote(
+    p.value ~ "Wilcoxon rank sum exact test. *p<0.05; **p<0.01; ***p<0.001"
+  ) %>%
+  modify_caption("**Table 1: descriptive statistics (avg. 2014-2021)**")
+
+  #modify_header(
+    #label ~ "",
+    #p.value ~ "**p-value**<br>&nbsp;"
+  #) %>%
+
+
+# Trin 5: Vis tabellen
+descriptive_table_avg
+
+```
+
+Below this line the additional descriptive statistics table should appear.
+
+```{r}
+#| echo: false
+
+# Trin 3: Vælg og forbered de relevante variable for præ-treatment perioden
+analysis_data <- master_data %>%
+  filter(year >= 2014 & year <= 2021) %>%
+  select(
+    group,
+    milex_gdp_sipri,
+    gdp_cap,
+    gdp_growth,
+    debt_gdp,
+    un_rate,
+    trade_rus,
+    safe_sec,
+    lib_dem,
+    annual_weighted_rile,
+    pop,
+    dist_rus,
+  ) %>%
+  mutate(
+    pop = pop / 1000000, # Fra enheder til millioner
+    gdp_cap = gdp_cap / 1000, # Fra enheder til tusinder
+    dist_rus = dist_rus / 1000, # Fra km til tusinder af km
+  )
+
+# Trin 4: Beregn de detaljerede deskriptive statistikker
+# Vi fjerner 'group' kolonnen fra de data, der skal analyseres,
+# men bruger den stadig som grupperingsvariabel.
+descriptives_list <- describeBy(analysis_data %>% select(-group),
+                                group = analysis_data$group)
+
+# Trin 5: Kombiner resultaterne fra listen til én samlet tabel (ROBUST METODE)
+# Vi tager manuelt fat i hver tabel i listen, tilføjer gruppenavn og kombinerer dem.
+control_stats <- descriptives_list$control %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "variable") %>%
+  mutate(group = "control", .before = 1)
+
+treatment_stats <- descriptives_list$treatment %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "variable") %>%
+  mutate(group = "treatment", .before = 1)
+
+combined_descriptives <- bind_rows(control_stats, treatment_stats) %>%
+  # Vælg de kolonner, vi ønsker at vise i den endelige tabel
+  select(
+    variable, group, n, mean, median, min, max, skew, kurtosis
+  )
+
+# Trin 6: Opret den pæne præsentationstabel med 'gt'
+# Denne tabel vil blive vist i RStudio's "Viewer"-fane eller kan blive renderet i et .qmd-dokument
+descriptive_table <- combined_descriptives %>%
+  gt(groupname_col = "group", rowname_col = "variable") %>%
+  # Formater tal til to decimaler for læsbarhed
+  fmt_number(
+    columns = c(mean, median, min, max, skew, kurtosis),
+    decimals = 2
+  ) %>%
+  # Tilføj en overskrift og en underoverskrift
+  tab_header(
+    title = "Table 2: descriptive statistics (avg. 2014-2021)",
+    subtitle = ""
+  )
+
+# Trin 7: Vis den færdige tabel
+print(descriptive_table)
+
+```

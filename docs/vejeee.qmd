@@ -1,0 +1,148 @@
+---
+title: "Untitled"
+format: typst
+editor: visual
+---
+
+This document generates the key exploratory data analysis figures for the bachelor's project. The code is organized into chunks for clarity and reproducibility.
+
+```{r}
+#| label: setup
+#| echo: false
+#| warning: false
+#| message: false
+
+# 1. SETUP: LOAD LIBRARIES
+# This chunk loads all necessary packages for the analysis.
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  here,
+  dplyr,
+  ggplot2,
+  patchwork
+)
+```
+
+...
+
+```{r}
+#| label: data-preparation
+#| echo: false
+
+# 2. DATA PREPARATION
+# This chunk loads the master dataset and prepares all the data frames needed for plotting.
+# Note: The 'here' package assumes your .qmd file is in a subfolder (like 'docs')
+# of your main RStudio project directory.
+master_data <- readRDS(here("data", "processed", "master_dataset_v1.rds"))
+
+master_data <- master_data %>%
+  mutate(
+    dist_threat_min = pmin(dist_rus, dist_blr, na.rm = TRUE)
+  )
+
+# --- Data for Plot A: Data Source Comparison ---
+n_counts_A <- master_data %>% filter(group == "treatment") %>% summarise(n = n_distinct(iso3c))
+trends_data_sipri <- master_data %>%
+  filter(group == "treatment", year >= 2014 & year <= 2024) %>%
+  group_by(year) %>%
+  summarise(avg_milex = mean(milex_gdp_sipri, na.rm = TRUE), .groups = "drop") %>%
+  mutate(source = paste0("SIPRI (n=", n_counts_A$n, ")"))
+trends_data_nato <- master_data %>%
+  filter(group == "treatment", year >= 2014 & year <= 2025) %>%
+  group_by(year) %>%
+  summarise(avg_milex = mean(milex_gdp_nato, na.rm = TRUE), .groups = "drop") %>%
+  mutate(source = paste0("NATO (n=", n_counts_A$n, ")"))
+plot_A_data <- bind_rows(trends_data_sipri, trends_data_nato)
+
+# --- Data for Plot B: Treatment vs. Control ---
+n_counts_B <- master_data %>% group_by(group) %>% summarise(n = n_distinct(iso3c))
+plot_B_data <- master_data %>%
+  filter(year >= 2014 & year <= 2024) %>%
+  group_by(group, year) %>%
+  summarise(avg_milex = mean(milex_gdp_sipri, na.rm = TRUE), .groups = "drop") %>%
+  left_join(n_counts_B, by = "group") %>%
+  mutate(group_label = paste0(group, " (n=", n, ")"))
+
+# --- Data for Plot C: Historical Blocs ---
+n_counts_C <- master_data %>% filter(group == "treatment") %>% group_by(post_com) %>% summarise(n = n_distinct(iso3c))
+plot_C_data <- master_data %>%
+  filter(group == "treatment", year >= 2014 & year <= 2025) %>%
+  mutate(bloc = if_else(post_com == 1, "Eastern Bloc", "Western Bloc")) %>%
+  group_by(bloc, year, post_com) %>%
+  summarise(avg_milex = mean(milex_gdp_nato, na.rm = TRUE), .groups = "drop") %>%
+  left_join(n_counts_C, by = "post_com") %>%
+  mutate(bloc_label = paste0(bloc, " (n=", n, ")"))
+
+# --- Data for Plot D: Geographical Blocs ---
+median_dist <- median(master_data$dist_threat_min[master_data$group == "treatment"], na.rm = TRUE)
+plot_D_data_prep <- master_data %>%
+  filter(group == "treatment") %>%
+  mutate(geo_bloc = if_else(dist_threat_min < median_dist, "Geographically East", "Geographically West"))
+n_counts_D <- plot_D_data_prep %>% group_by(geo_bloc) %>% summarise(n = n_distinct(iso3c))
+plot_D_data <- plot_D_data_prep %>%
+  filter(year >= 2014 & year <= 2025) %>%
+  group_by(geo_bloc, year) %>%
+  summarise(avg_milex = mean(milex_gdp_nato, na.rm = TRUE), .groups = "drop") %>%
+  left_join(n_counts_D, by = "geo_bloc") %>%
+  mutate(bloc_label = paste0(geo_bloc, " (n=", n, ")"))
+
+# --- Data for Plot E: Shared Borders ---
+n_counts_E <- master_data %>% filter(group == "treatment") %>% group_by(border_rus_blr) %>% summarise(n = n_distinct(iso3c))
+plot_E_data <- master_data %>%
+  filter(group == "treatment", year >= 2014 & year <= 2025) %>%
+  mutate(border_label_cat = if_else(border_rus_blr == 1, "Shares Border", "No Shared Border")) %>%
+  group_by(border_label_cat, year, border_rus_blr) %>%
+  summarise(avg_milex = mean(milex_gdp_nato, na.rm = TRUE), .groups = "drop") %>%
+  left_join(n_counts_E, by = "border_rus_blr") %>%
+  mutate(border_label = paste0(border_label_cat, " (n=", n, ")"))
+
+# --- Data for Plot F: Proximity Quartiles ---
+n_counts_F <- master_data %>% filter(group == "treatment") %>% mutate(threat_quartile = factor(ntile(dist_threat_min, 4))) %>% group_by(threat_quartile) %>% summarise(n = n_distinct(iso3c))
+plot_F_data <- master_data %>%
+  filter(group == "treatment", year >= 2014 & year <= 2025) %>%
+  mutate(threat_quartile = factor(ntile(dist_threat_min, 4))) %>%
+  group_by(threat_quartile, year) %>%
+  summarise(avg_milex = mean(milex_gdp_nato, na.rm = TRUE), .groups = "drop") %>%
+  left_join(n_counts_F, by = "threat_quartile") %>%
+  mutate(quartile_label = paste0(threat_quartile, " (n=", n, ")"))
+```
+
+### Overview Figures
+
+This section provides a general overview of the data sources and the raw comparison between the original treatment and control groups.
+
+```{r}
+#| label: fig-overview
+#| fig-cap: "An overview of the data sources and the raw comparison between the original treatment and control groups."
+#| fig-width: 10
+#| fig-height: 5
+#| echo: false
+
+# --- Harmonize Y-axis for Figure 1 ---
+y_min_fig1 <- min(c(plot_A_data$avg_milex, plot_B_data$avg_milex), na.rm = TRUE)
+y_max_fig1 <- max(c(plot_A_data$avg_milex, plot_B_data$avg_milex), na.rm = TRUE)
+y_limits_fig1 <- c(y_min_fig1, y_max_fig1)
+
+# --- Create individual plots for Figure 1 ---
+plot_A <- ggplot(plot_A_data, aes(x = year, y = avg_milex, color = source, group = source)) +
+  geom_line(linewidth = 1) + geom_point(size = 2.5) +
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "black") +
+  scale_x_continuous(breaks = seq(2014, 2025, by = 2)) +
+  scale_y_continuous(limits = y_limits_fig1) +
+  labs(title = "A: Data Source Comparison", x = "Year", y = "Avg. Military Spending (% GDP)", color = NULL) +
+  theme_minimal(base_size = 12) + theme(legend.position = "bottom")
+
+plot_B <- ggplot(plot_B_data, aes(x = year, y = avg_milex, color = group_label, group = group_label)) +
+  geom_line(linewidth = 1) + geom_point(size = 2.5) +
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "black") +
+  scale_x_continuous(breaks = seq(2014, 2025, by = 2), limits = c(2014, 2025)) +
+  scale_y_continuous(limits = y_limits_fig1) +
+  labs(
+    title = "B: Treatment vs. Original Control",
+    subtitle = "Note: Uses SIPRI data for comparability.",
+    x = "Year", y = NULL, color = NULL
+  ) +
+  theme_minimal(base_size = 12) + theme(legend.position = "bottom")
+
+# --- Combine Figure 1 ---
+plot_A + plot_B

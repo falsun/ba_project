@@ -1,0 +1,11 @@
+---
+title: "Untitled"
+format: typst
+editor: visual
+---
+
+# Antagelsen om paralelle trends
+
+![Trends in Military Spending by Group](output/figure_1_overview.pdf){#fig-overview width="100%"}
+
+![Exploring Heterogeneity Within the European NATO Sample](output/figure_2_heterogeneity.pdf){#fig-heterogeneity width="100%"}
