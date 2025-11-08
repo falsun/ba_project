@@ -18,13 +18,13 @@ pacman::p_load(tidyverse, ggrepel, patchwork, ggridges, hrbrthemes, scales)
 # --- 1. DEFINE THE PROJECT'S OFFICIAL COLOR PALETTE ---
 project_colors <- list(
   # Qualitative Palette
-  treatment = "#118ACB",
-  control   = "#EDF67D",
+  treatment = "#0077b6",
+  control = "#f48c06",
 
   # Diverging Palette
   high = "#4F9D69",
-  mid  = "#FFFFFF",
-  low  = "#E54B4B"
+  mid = "#FFFFFF",
+  low = "#E54B4B"
 )
 
 
@@ -35,55 +35,93 @@ theme_bachelor_project <- function(...) {
     ...
   ) +
     theme(
-      legend.position = "top",
-      legend.justification = 'center',
+      legend.position = c(0.02, 0.98),
+      legend.justification = c("left", "top"),
+      # legend.background = element_rect(fill = "white", color = "black", linewidth = 0.3),
       legend.title = element_blank(),
-      plot.title = element_text(size = 18),
-      plot.subtitle = element_text(size = 14),
-      axis.title.x = element_text(size = 10),
-      axis.title.y = element_text(size = 10),
-      axis.text.x = element_text(size = 12),
-      axis.text.y = element_text(size = 12),
-      legend.text = element_text(size = 10),
+      plot.title = element_text(size = 18, color = "black"),
+      plot.subtitle = element_text(size = 14, color = "black"),
+      axis.title.x = element_text(size = 12, color = "black"),
+      axis.title.y = element_text(size = 12, color = "black"),
+      axis.text.x = element_text(size = 10, color = "black"),
+      axis.text.y = element_text(size = 10, color = "black"),
+      legend.text = element_text(size = 12, color = "black"),
       panel.grid.minor = element_blank(),
-      panel.grid.major.x = element_blank()
+      panel.grid.major.x = element_blank(),
+      plot.margin = margin(t = 0, r = 0, b = 0, l = 0)
+    )
+}
+
+
+# --- 3. CREATE THE CUSTOM GT TABLE THEME ---
+theme_gt_bachelor_project <- function(data) {
+  data %>%
+    fmt_number(
+      columns = where(is.numeric),
+      decimals = 3,
+      # dec_mark = ",",
+      # sep_mark = "."
+    ) %>%
+    opt_table_font(
+      font = "IBM Plex Serif",
+      color = "black",
+      add = FALSE
+    ) %>%
+    tab_options(
+      table.font.size = "10pt",
+      footnotes.marks = "letters"
+    ) %>%
+    tab_style(
+      style = cell_text(weight = "bold"),
+      locations = cells_column_labels(columns = everything())
     )
 }
 
 
 # --- 3. CREATE CUSTOM COLOR & FILL SCALES ---
+project_qual_colors_map <- c(
+  "treatment"         = project_colors$treatment,
+  "treated"           = project_colors$treatment,
+  "Treated"           = project_colors$treatment,
+  "behandlet"         = project_colors$treatment,
+  "control"           = project_colors$control,
+  "synthetic control" = project_colors$control,
+  "Synthetic Control" = project_colors$control,
+  "syntetisk kontrol" = project_colors$control,
+  "donorpulje"        = project_colors$control
+)
+
+# --- 3.1 Qualitative Scales ---
 scale_color_project_qual <- function(...) {
   scale_color_manual(
-    values = c("treatment" = project_colors$treatment, "control" = project_colors$control),
-    limits = c("treatment", "control"),
+    values = project_qual_colors_map,
     ...
   )
 }
 
 scale_fill_project_qual <- function(...) {
   scale_fill_manual(
-    values = c("treatment" = project_colors$treatment, "control" = project_colors$control),
-    limits = c("treatment", "control"),
+    values = project_qual_colors_map,
     ...
   )
 }
 
-scale_color_project_div <- function(...) {
+scale_color_project_div <- function(midpoint = 0, ...) {
   scale_color_gradient2(
     low = project_colors$low,
     mid = project_colors$mid,
     high = project_colors$high,
-    midpoint = 0,
+    midpoint = midpoint,
     ...
   )
 }
 
-scale_fill_project_div <- function(...) {
+scale_fill_project_div <- function(midpoint = 0, ...) {
   scale_fill_gradient2(
     low = project_colors$low,
     mid = project_colors$mid,
     high = project_colors$high,
-    midpoint = 0,
+    midpoint = midpoint,
     ...
   )
 }
@@ -100,7 +138,6 @@ scale_fill_project_div <- function(...) {
 #' @return The ggplot object of the correlation plot.
 #'
 create_corr_plot <- function(data, vars, title = NULL, output_dir, file_name) {
-
   corr_matrix <- data %>%
     select(all_of(vars)) %>%
     cor(use = "pairwise.complete.obs")
@@ -114,8 +151,10 @@ create_corr_plot <- function(data, vars, title = NULL, output_dir, file_name) {
     lab_size = 3.5,
     outline.col = "white"
   ) +
-    scale_fill_project_div(name = "Correlation",
-                           limits = c(-1, 1)) +
+    scale_fill_project_div(
+      name = "Correlation",
+      limits = c(-1, 1)
+    ) +
     theme_bachelor_project() +
     theme(panel.grid.major.y = element_blank(), legend.position = "right") +
 
@@ -148,7 +187,6 @@ create_corr_plot <- function(data, vars, title = NULL, output_dir, file_name) {
 #'
 create_distribution_plot <- function(data, var_name, var_label, manual_breaks = NULL,
                                      manual_binwidth = NULL, output_dir, title = NULL) {
-
   # --- 4.1. SETUP ---
   var_name_enquo <- enquo(var_name)
   current_var_name <- quo_name(var_name_enquo)
@@ -166,18 +204,22 @@ create_distribution_plot <- function(data, var_name, var_label, manual_breaks = 
     upper_limit <- max(manual_breaks)
   } else {
     lower_limit <- 0
-    if (startsWith(current_var_name, "log_")) { lower_limit <- NA }
+    if (startsWith(current_var_name, "log_")) {
+      lower_limit <- NA
+    }
     upper_limit <- NA
   }
-  calculate_fd_bw <- function(x) { 2 * IQR(x, na.rm = TRUE) / (length(na.omit(x))^(1/3)) }
+  calculate_fd_bw <- function(x) {
+    2 * IQR(x, na.rm = TRUE) / (length(na.omit(x))^(1 / 3))
+  }
   bin_width <- if (!is.null(manual_binwidth)) {
     message(glue::glue(">> For '{current_var_name}', using manual binwidth: {manual_binwidth}"))
     manual_binwidth
   } else {
     bw_treatment <- calculate_fd_bw(data %>% filter(group == "treatment") %>%
-                                      pull({{ var_name_enquo }}))
-    bw_control   <- calculate_fd_bw(data %>% filter(group == "control") %>%
-                                      pull({{ var_name_enquo }}))
+      pull({{ var_name_enquo }}))
+    bw_control <- calculate_fd_bw(data %>% filter(group == "control") %>%
+      pull({{ var_name_enquo }}))
     avg_bw <- mean(c(bw_treatment, bw_control), na.rm = TRUE)
     message(glue::glue(">> For '{current_var_name}', using unbiased FD binwidth: {round(avg_bw, 3)}"))
     avg_bw
@@ -203,17 +245,20 @@ create_distribution_plot <- function(data, var_name, var_label, manual_breaks = 
     geom_histogram(binwidth = bin_width, color = "white", alpha = 1) +
     geom_hline(yintercept = 0, color = "#cccccc", linetype = "solid", linewidth = 0.25) +
     scale_fill_project_qual() +
-
     theme_bachelor_project() +
-    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
-          plot.margin = margin(b = 0, unit = "pt")) +
+    theme(
+      axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+      plot.margin = margin(b = 0, unit = "pt")
+    ) +
     labs(x = NULL, y = NULL)
 
   treatment_box <- ggplot(data_treat, aes(x = {{ var_name_enquo }}, fill = group)) +
     geom_boxplot(width = 0.5, alpha = 1) +
-    geom_text_repel(data = filter(outlier_data, group == "treatment"),
-                    aes(x = {{ var_name_enquo }}, y = 0, label = iso3c),
-                    size = 3.5, max.overlaps = Inf, nudge_y = 0.25, direction = "x") +
+    geom_text_repel(
+      data = filter(outlier_data, group == "treatment"),
+      aes(x = {{ var_name_enquo }}, y = 0, label = iso3c),
+      size = 3.5, max.overlaps = Inf, nudge_y = 0.25, direction = "x"
+    ) +
     scale_fill_project_qual(guide = "none") +
     theme_bachelor_project() +
     theme(
@@ -230,15 +275,19 @@ create_distribution_plot <- function(data, var_name, var_label, manual_breaks = 
     geom_hline(yintercept = 0, color = "#cccccc", linetype = "solid", linewidth = 0.25) +
     scale_fill_project_qual() +
     theme_bachelor_project() +
-    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
-          plot.margin = margin(t = 5, b = 0, unit = "pt")) +
+    theme(
+      axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+      plot.margin = margin(t = 5, b = 0, unit = "pt")
+    ) +
     labs(x = NULL, y = NULL)
 
   control_box <- ggplot(data_control, aes(x = {{ var_name_enquo }}, fill = group)) +
     geom_boxplot(width = 0.5, alpha = 1) +
-    geom_text_repel(data = filter(outlier_data, group == "control"),
-                    aes(x = {{ var_name_enquo }}, y = 0, label = iso3c),
-                    size = 3.5, max.overlaps = Inf, nudge_y = 0.25, direction = "x") +
+    geom_text_repel(
+      data = filter(outlier_data, group == "control"),
+      aes(x = {{ var_name_enquo }}, y = 0, label = iso3c),
+      size = 3.5, max.overlaps = Inf, nudge_y = 0.25, direction = "x"
+    ) +
     scale_fill_project_qual(guide = "none") +
     theme_bachelor_project() +
     theme(
@@ -263,9 +312,9 @@ create_distribution_plot <- function(data, var_name, var_label, manual_breaks = 
   }
 
   final_plot <- final_plot +
-    plot_layout(heights = c(8, 1, 8, 1), guides = 'collect') &
+    plot_layout(heights = c(8, 1, 8, 1), guides = "collect") &
     theme(
-      legend.position = 'top'
+      legend.position = "top"
     )
 
   file_name <- glue::glue("{current_var_name}_dist.png")
@@ -288,7 +337,6 @@ create_distribution_plot <- function(data, var_name, var_label, manual_breaks = 
 #'
 create_aggregated_ts_plot <- function(data, var_name, var_label, treatment_year,
                                       output_dir, title = NULL) {
-
   var_name_enquo <- enquo(var_name)
   current_var_name <- quo_name(var_name_enquo)
 
@@ -298,13 +346,10 @@ create_aggregated_ts_plot <- function(data, var_name, var_label, treatment_year,
 
   ts_plot <- ggplot(agg_data, aes(x = year, y = mean_value, color = group, group = group)) +
     geom_line(linewidth = 1.2) +
-    geom_point(size = 2.5) +
     geom_vline(xintercept = treatment_year - 1, linetype = "dashed", color = "grey40") +
     scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
-    scale_y_continuous(labels = scales::label_percent(scale = 1, accuracy = 0.01)) +
     scale_color_project_qual(name = NULL) +
     theme_bachelor_project() +
-
     labs(
       x = NULL,
       y = NULL
@@ -324,18 +369,15 @@ create_aggregated_ts_plot <- function(data, var_name, var_label, treatment_year,
 # 6. INDIVIDUAL TIME SERIES PLOT =============================================
 create_spaghetti_ts_plot <- function(data, var_name, var_label, treatment_year,
                                      output_dir, title = NULL) {
-
   var_name_enquo <- enquo(var_name)
   current_var_name <- quo_name(var_name_enquo)
 
   spaghetti_plot <- data %>%
     filter(!is.na(group)) %>%
-
     ggplot(aes(x = year, y = {{ var_name_enquo }}, color = group, group = iso3c)) +
     geom_line(alpha = 0.6) +
     geom_vline(xintercept = treatment_year - 1, linetype = "dashed", color = "grey40") +
     scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
-    scale_y_continuous(labels = scales::label_percent(scale = 1, accuracy = 0.01)) +
     scale_color_project_qual(name = NULL) +
     theme_bachelor_project() +
     labs(
@@ -351,4 +393,106 @@ create_spaghetti_ts_plot <- function(data, var_name, var_label, treatment_year,
   ggsave(file.path(output_dir, file_name), spaghetti_plot, width = 8, height = 6, bg = "white")
 
   return(spaghetti_plot)
+}
+
+
+# 7. SDID PLOT STOCHASTIC (BOOSTRAP) CALCULATIONS ============================
+get_raw_sdid_plot <- function(estimate_obj, overlay = FALSE) {
+  p_raw <- plot(estimate_obj,
+    overlay = as.numeric(overlay),
+    line.width = 1.2,
+    point.size = 0,
+    trajectory.linetype = 1,
+    trajectory.alpha = 1,
+    effect.alpha = 1,
+    diagram.alpha = 0.6,
+    se.method = SE_METHOD
+  )
+  return(p_raw)
+}
+
+
+# 8. SDID PLOT STYLING =======================================================
+style_sdid_plot <- function(raw_plot, vline_year, plot_title) {
+  p_styled <- raw_plot +
+    geom_vline(xintercept = vline_year - 1, linetype = "dashed", color = "grey40") +
+    scale_x_continuous(breaks = seq(2014, 2024, by = 2), limits = c(2014, 2024)) +
+    scale_y_continuous(labels = scales::label_percent(
+      scale = 1,
+      accuracy = 0.01,
+      decimal.mark = ","
+    )) +
+    scale_color_project_qual(
+      name = NULL,
+      breaks = c("treated", "synthetic control"),
+      labels = c("behandlet", "syntetisk kontrol")
+    ) +
+    theme_bachelor_project() +
+    labs(x = NULL, y = NULL, title = plot_title)
+
+  p_styled$layers[[7]] <- NULL
+  return(p_styled)
+}
+
+
+# 7. DUMBBELL ================================================================
+#' Creates a dumbbell plot showing change between two years.
+#'
+#' @param data A dataframe containing panel data.
+#' @param var_name The variable to plot on the x-axis (unquoted symbol).
+#' @param var_label A label for the x-axis.
+#' @param start_year The starting year for the dumbbell.
+#' @param end_year The ending year for the dumbbell.
+#' @param output_dir The directory to save the plot in.
+#' @return A ggplot object.
+#'
+create_dumbbell_plot <- function(data, var_name, var_label, start_year, end_year, output_dir) {
+  var_name_enquo <- enquo(var_name)
+  current_var_name <- quo_name(var_name_enquo)
+  base_font <- "IBM Plex Sans"
+
+  plot_data <- data %>%
+    filter(group == "treatment", year %in% c(start_year, end_year)) %>%
+    select(iso3c, year, {{ var_name_enquo }})
+
+  wide_data <- plot_data %>%
+    pivot_wider(
+      names_from = year,
+      values_from = {{ var_name_enquo }},
+      names_prefix = "year_"
+    ) %>%
+    mutate(
+      iso3c = fct_reorder(iso3c, .data[[paste0("year_", end_year)]]),
+      point_type_start = factor(as.character(start_year), levels = c(as.character(start_year), as.character(end_year))),
+      point_type_end = factor(as.character(end_year), levels = c(as.character(start_year), as.character(end_year)))
+    )
+
+  color_values <- setNames(
+    c("grey50", project_colors["treatment"]),
+    c(as.character(start_year), as.character(end_year))
+  )
+
+  dumbbell_plot <- ggplot(wide_data, aes(y = iso3c)) +
+    geom_segment(aes(x = .data[[paste0("year_", start_year)]], xend = .data[[paste0("year_", end_year)]], yend = iso3c), color = "grey70", linewidth = 0.8) +
+    geom_point(aes(x = .data[[paste0("year_", start_year)]], color = point_type_start), size = 3) +
+    geom_point(aes(x = .data[[paste0("year_", end_year)]], color = point_type_end), size = 3) +
+    geom_vline(xintercept = 2, linetype = "dashed", color = "black", linewidth = 0.8) +
+    scale_fill_project_qual() +
+    theme_bachelor_project() +
+    theme(
+      legend.position = "top",
+      legend.title = element_text(face = "bold"),
+      plot.title = element_text(face = "bold", size = 16),
+      plot.subtitle = element_text(size = 12)
+    ) +
+    labs(
+      title = glue::glue("{var_label} {start_year} vs. {end_year}"),
+      x = var_label,
+      y = NULL
+    )
+
+  file_name <- glue::glue("{current_var_name}_dumbbell_treatment_{start_year}_{end_year}.png")
+  ggsave(file.path(output_dir, file_name), dumbbell_plot, width = 8, height = 10, bg = "white")
+
+  return(dumbbell_plot)
 }

@@ -1,0 +1,12 @@
+```{r}
+#| include: false
+
+chunkhooks::hook_figure_unit('cm')
+
+knitr::opts_chunk$set(
+  dev = "svglite",
+  fig.width = 6,
+  fig-asp = 0.75
+)
+
+```

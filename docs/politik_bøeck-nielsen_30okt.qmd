@@ -1,0 +1,261 @@
+---
+editor: visual
+title: "SDID"
+author: ""
+date: ""
+toc: false
+format:
+  typst:
+    include-in-header:
+      text: |
+        #set page(
+          header: {
+            [BA-vejledning]
+            h(1fr) 
+            [Frederik Bender Bøeck-Nielsen]
+            h(1fr) 
+            [30/10/2025]
+          }
+        )
+#abstract: "bla bla bla"
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(svglite)
+library(here)
+library(tidyverse)
+library(synthdid)
+library(gt)
+library(gtsummary)
+library(patchwork)
+
+chunkhooks::hook_figure_unit('cm')
+
+source(here::here("scripts", "00_functions.R"))
+
+DIR_DATA     <- here::here("_output", "_raw_objects")
+TREAT_YEAR   <- 2022
+PLACEBO_YEAR <- 2019
+
+sdid_estimate <- readRDS(file.path(DIR_DATA, "sdid_estimate.rds"))
+sdid_placebo_estimate <- readRDS(file.path(DIR_DATA, "sdid_placebo_estimate.rds"))
+sdid_data_formatted <- readRDS(file.path(DIR_DATA, "sdid_data_formatted.rds"))
+setup <- readRDS(file.path(DIR_DATA, "setup.rds"))
+
+se <- readRDS(file.path(DIR_DATA, "se.rds"))
+placebo_se <- readRDS(file.path(DIR_DATA, "placebo_se.rds"))
+
+sdid_plot_raw <- readRDS(file.path(DIR_DATA, "sdid_plot_raw.rds"))
+overlay_plot_raw <- readRDS(file.path(DIR_DATA, "overlay_plot_raw.rds"))
+units_dot_plot_raw <- readRDS(file.path(DIR_DATA, "units_dot_plot_raw.rds"))
+placebo_plot_raw <- readRDS(file.path(DIR_DATA, "placebo_plot_raw.rds"))
+placebo_overlay_plot_raw <- readRDS(file.path(DIR_DATA, "placebo_overlay_plot_raw.rds"))
+placebo_units_dot_plot_raw <- readRDS(file.path(DIR_DATA, "placebo_units_dot_plot_raw.rds"))
+
+critical_value <- qnorm(0.975)
+att <- as.numeric(sdid_estimate)
+z_stat <- att / se
+p_value <- 2 * pnorm(-abs(z_stat))
+ci_lower <- att - critical_value * se
+ci_upper <- att + critical_value * se
+
+placebo_att <- as.numeric(sdid_placebo_estimate)
+placebo_z_stat <- placebo_att / placebo_se
+placebo_p_value <- 2 * pnorm(-abs(placebo_z_stat))
+placebo_ci_lower <- placebo_att - critical_value * placebo_se
+placebo_ci_upper <- placebo_att + critical_value * placebo_se
+
+sdid_rmse_plot <- synthdid_rmse_plot(sdid_estimate)
+rmse_data <- sdid_rmse_plot$data
+rmse <- rmse_data$rmse[which.max(rmse_data$iteration)]
+
+sdid_placebo_rmse_plot <- synthdid_rmse_plot(sdid_placebo_estimate)
+rmse_placebo_data <- sdid_placebo_rmse_plot$data
+rmse_placebo <- rmse_placebo_data$rmse[which.max(rmse_placebo_data$iteration)]
+
+unit_weights_df <- synthdid_controls(sdid_estimate, mass = 1, weight.type = "omega") %>%
+  as_tibble(rownames = "unit") %>%
+  rename(weight = "estimate 1")
+
+time_weights_df <- synthdid_controls(sdid_estimate, mass = 1.1, weight.type = "lambda") %>%
+  as_tibble(rownames = "time") %>%
+  rename(weight = "estimate 1")
+
+placebo_unit_weights_df <- synthdid_controls(sdid_placebo_estimate, mass = 1, weight.type = "omega") %>%
+  as_tibble(rownames = "unit") %>%
+  rename(weight = "estimate 1")
+
+placebo_time_weights_df <- synthdid_controls(sdid_placebo_estimate, mass = 1.1, weight.type = "lambda") %>%
+  as_tibble(rownames = "time") %>%
+  rename(weight = "estimate 1")
+
+yearly_att <- synthdid_effect_curve(sdid_estimate)
+all_years <- sort(unique(sdid_data_formatted$time))
+post_treat_years <- all_years[(setup$T0 + 1):length(all_years)]
+yearly_att_table_data <- tibble(
+  Term = as.character(post_treat_years),
+  Estimate = as.numeric(yearly_att)
+)
+
+```
+
+# Syntetisk Difference-in-Differences {#sec-syntetisk-difference-in-differences}
+
+Det er lidt tid siden sidst, og jeg er næsten i mål med Trin 1 af min analyse. Jeg har valgt at køre en Syntetisk Difference-in-Difference model (SDID fremover), da det er en af de mest moderne og robuste syntetiske kontrol modeller. Modellen er en syntese af Difference-in-Differences og syntetisk kontrol, med de fordele at den stiller mindre strikse krav om parallelle trends end DID[^1], samtidig med at den er mere nuanceret end SCM, da den ikke kun vægter enhederne fra donor-puljen, men også vægter de enkelte år fra præ-behandlingsperioden. Uden at kede jer mere med detaljerne, så betegnes modellen derfor kort sagt som at være dobbelt-robust [@arkhangelsky2021].
+
+[^1]: SDID håndterer også non-stationær data og tværsnitsafhængighed bedre end DID.
+
+Først var min tanke at bare tilføje en hel masse lande som donorer, og så lade modellen om at vægte dem. Modellen er lavet til at vægte hver enhed, så hvis visse donorer er "dårlige", så vil den vel give dem nul (eller negativ) vægt. Problemet er dog, at modellen ikke har noget teoretisk fundament; den prøver helt enkelt at matche tendensen i den afhængige variabel i præ-behandlingsperioden. Modellen ville potentielt komme frem til et match bestående af 10% Rwanda, 20% El Salvador, 5% Irland, 10% Bangladesh, 15% Australien, 20% Kasakhstan, 10% Sydafrika og 10% Mexico. Dette kan statistisk være et perfekt match, men der er ingen teoretisk logik, og chancen for "overfitting" og støj er meget stor. Det svarer til at man i en standard DID-analyse finder ud af at Danmark og Ghana's forsvarsbudgetter tilfældigvis har helt samme tendens, og deraf konkluderer at Ghana er valid som et kontrafaktisk Danmark[^2].
+
+[^2]: [Spurious Correlations](https://www.tylervigen.com/spurious-correlations).
+
+Man er derfor nødt til at udvælge donorer der minder om ens behandlingsgruppe – og står overfor samme sikkerhedsmæssige udfordringer – for at der kan være en teoretisk grund til at tro at de kan konstituere en valid kontrafaktisk behandlingsgruppe. I mit tilfælde betyder det konkret, at valide donorer er lande som strukturelt minder om behandlingsgruppen[^3], og som har forsvarsbudgetter der drives af de samme overordnede tendenser[^4]. Det betyder bl.a. at Israel ikke er en god donor grundet deres unikke sikkerhedspolitiske situation, og ej heller er Mexico, hvis forsvarsbudget primært drives af deres interne kamp mod narkokarteller[^5]. En lang række overvejelser om donorer har derfor ført mig frem til følgende endelige liste: Australien, Canada, Irland, Japan, New Zealand, Schweiz, Sydkorea og Østrig. Disse otte lande er alle OECD-medlemmer, kun ét af dem er NATO-medlem (Canada) og ingen af dem har været involveret i en reel konflikt siden 2014.
+
+[^3]: fx BNP per indbygger og grad af demokrati.
+
+[^4]: Afskrækkelse af statslige aktører og deltagelse i fredsbevarende missioner.
+
+[^5]: [Mexico’s Long War: Drugs, Crime, and the Cartels](https://www.cfr.org/backgrounder/mexicos-long-war-drugs-crime-and-cartels).
+
+Til sidste vejledning var min primære bekymring ekstrapolation[^6]. Sidenhen er jeg dog blevet klogere på syntetisk kontrol, og jeg har deraf erfaret et par vigtige nuancer. Hovedformålet med syntetisk kontrol er at matche på den afhængige variabel, og det kan faktisk være en ulempe at tilføje for mange kontrolvariabler til modellen, da det kan generere støj og gøre det sværere for modellen at finde et godt match. En typisk tilgang er derfor at først estimere modellen helt uden kontrolvariabler, og derefter estimere en model med 1–2 kontrolvariabler.
+
+[^6]: Når rækkevidden i en bestemt variabel, er større i behandlingsgruppen end i donorpuljen (fx at behandlingsgruppen er væsentligt tættere på Rusland end donorpuljen).
+
+Givet min relativt korte præ-behandlingsperiode og relativt lille donorpulje, er det endnu vigtigere at modellen ikke får for mange forskellige variabler at arbejde med, og jeg har derfor valgt at estimere en model kun med den afhængige variabel, og en model hvor jeg inkluderer BNP per indbygger. Jeg har valgt BNP per indbygger, da det overordnet set er den markør der har den stærkeste teoretiske sammenhæng med forsvarsudgifter. Samtidig er det et af de punkter hvor der er størst forskel mellem min behandlingsgruppe og donorpulje, da donorpuljen består af relativt rige lande, hvorimod min behandlingsgruppe bl.a. indeholder lande som Albanien og Rumænien. BNP per indbygger kan derfor bruges til at korrigere for denne forskel.
+
+Selvom jeg stadig er af den opfattelse at "afstand til Rusland" er den stærkeste drivkraft bag forsvarsbudgetterne i min behandlingsgruppe, så har jeg valgt ikke at inkludere den i trin 1 af analysen. Dette skyldes at det på sin vis er en implicit karakteristika ved min behandlingsgruppe at de er tæt på Rusland. At inkludere variablen vil sandsynligvis have to forskellige udfald; enten vil modellen ignorere den helt, eller også vil den tildele al vægt til Schweiz og Østrig. Variablen vil i stedet indgå som kerne variabel i Trin 2 af analysen, hvor jeg undersøger variationen internt i behandlingsgruppen.
+
+# Resultater {#sec-resultater}
+
+[Synthdid-pakken](https://synth-inference.github.io/synthdid/) er ret besværlig at arbejde med, så jeg har endnu ikke kørt modellen med kontrolvariablen (måske har jeg inden vejledningen...).
+
+```{r}
+#| label: tbl-sdid1-results
+#| tbl-cap: "SDID Model 1 Resultater"
+#| tbl-cap-location: top
+
+combined_att_data <- tibble(
+  Model = c("Hovedmodel (2022–2024)", "Placebo In-Time (2019–2021)"),
+  Estimate = c(att, placebo_att),
+  Std.Error = c(se, placebo_se),
+  ci.lower = c(ci_lower, placebo_ci_lower),
+  ci.upper = c(ci_upper, placebo_ci_upper),
+  p.value = c(p_value, placebo_p_value),
+  RMSE = c(rmse, rmse_placebo)
+)
+
+sdid1_results <- combined_att_data %>%
+  gt() %>%
+  cols_label(
+    Model = "Model",
+    Estimate = "ATT",
+    Std.Error = "Std. fejl",
+    ci.lower = "95% KI",
+    p.value = "p-værdi",
+    RMSE = "RMSE"
+  ) %>%
+  fmt_number(columns = c(Estimate, Std.Error, ci.lower, ci.upper, RMSE), decimals = 3) %>%
+  cols_merge(columns = c(ci.lower, ci.upper), pattern = "[{1}–{2}]") %>%
+  fmt(
+    columns = p.value,
+    fns = function(x) gtsummary::style_pvalue(x, digits = 3)
+  ) %>%
+  tab_footnote(
+    footnote = "Gennemsnitlig behandlingseffekt hos de behandlede.",
+    locations = cells_column_labels(columns = Estimate)
+  ) %>%
+  tab_footnote(
+    footnote = "Root mean squared error.",
+    locations = cells_column_labels(columns = RMSE)
+  ) %>%
+  theme_gt_bachelor_project()
+
+sdid1_results
+
+```
+
+@tbl-sdid1-results opsummerer resultaterne af den simple SDID model uden kontrolvariabel. Modellen fandt en ATT på 0,303, hvilket kan virke småt, men taget i betragtning at den afhængige variabel i grove træk ligger mellem 1–2,5 er det en relativt stor effekt. Tolkningen er at invasionen forårsagede en gennemsnitlig stigning på 0,3 procentpoint blandt Europæiske NATO-lande. Konfidensintervallet ligger mellem 0,15–0,45 og fundet er statistisk signifikant (p \< 0,001)[^7]. RMSE er et mål for modellens evne til at matche tendensen i præ-behandlingsperioden og dens værdi vurderes relativt til ATT. Modellens ATT er 2,5 gange så stor som dens RMSE, hvilket er et godt tegn.
+
+[^7]: Standardfejl, konfidens-intervaller og p-værdier er udregnet via den robuste 'bootstrap' metode.
+
+"Placebo In-Time" er en robusthedstest hvor man lader som om at invasionen fandt sted i et tidligere år[^8]. Dette er for at undersøge om modellen bare opfanger støj, tilfældige sammenhænge og om de to grupper allerede fulgte forskellige tendenser inden behandlingen. Placebo-modellen fandt en ATT på 0,098 procentpoint, men fundet er ikke statistisk signifikant (p = 0,063) og konfidensintervallet overlapper lige akkurat nul. Modellen har cirka samme RMSE som hovedmodellen, men placebo-modellens RMSE er faktisk større end dens ATT. Dette er gode resultater for hovedmodellen, da det indikerer at effekten i 2022 var unik.
+
+[^8]: Modellen vælger automatisk et passende placebo år. I dette tilfælde valgte den 2019.
+
+SDID er beregnet til at estimere en samlet ATT for hele post-behandlingsperioden, men man kan udtrække punktestimaterne som den samlede ATT er et gennemsnit af. Modellen udregner en ATT på 0,104 for 2022, 0,294 for 2023 og 0,510 for 2024. Tallene bekræfter forventningen om en tiltagende effekt i årene efter invasionen og det formodes at effekten er endnu større for 2025[^9].
+
+[^9]: Data for 2025 er desværre kun tilgængelig for behandlinsgruppen, men ikke for donorpuljen.
+
+# Spørgsmål {#sec-spørgsmål}
+
+1.  Jeg overvejer kraftigt at supplere SDID modellen med en Generalized Synthetic Control model [@xu2017]. Tanken er at modellerne kan fungere som hinandens robusthedstests, for at vise at mine fund ikke afhænger af en specifik model. Er det en god idé, eller er det "overkill"?
+2.  Ift. Trin 2 af analysen, så er tanken stadig at sammenligne forklaringskraften af forskellige faktorer i 2014-2021 vs. 2022-2024. Fx ved at undersøge om effekten af BNP per indbygger er stærkere/svagere efter invasionen, end før. Hvad synes i om denne tilgang? Andre forslag til hvordan jeg kan undersøge variationen?
+
+# Figurer {#sec-figurer}
+
+```{r}
+#| label: fig-trends-milex
+#| fig-cap: "Parallele Trends (Forsvarsudgifter som % af BNP)"
+#| fig-asp: 0.68
+
+DIR_FIG  <- here::here("_output", "_figures")
+MASTER_PANEL_LOG <- here::here("data", "_processed", "master_panel_log.rds")
+master_panel_log <- readRDS(MASTER_PANEL_LOG)
+
+VAR_LABEL <- "Military Spending (% of GDP)"
+
+analysis_df <- master_panel_log %>%
+  select(group, iso3c, year, post_treat, milex_gdp) %>%
+  filter(group %in% c("control", "treatment"))
+
+create_aggregated_ts_plot(
+  data = analysis_df,
+  var_name = milex_gdp,
+  var_label = VAR_LABEL,
+  treatment_year = TREAT_YEAR,
+  output_dir = DIR_FIG,
+  title = NULL
+)
+```
+
+```{r}
+#| label: fig-sdid1-overlay
+#| fig-cap: "Simpel SDID Model (Forsvarsudgifter som % af BNP)"
+#| fig-asp: 0.68
+
+sdid1_overlay_plot <- style_sdid_plot(
+  overlay_plot_raw,
+  vline_year = TREAT_YEAR,
+  plot_title = NULL
+)
+
+sdid1_overlay_plot
+```
+
+```{r}
+#| label: fig-sdid1-weights
+#| fig-cap: "Simpel SDID Model (vægtning af lande og tidsperioder)"
+#| fig-asp: 1
+
+unit_weights_plot <- ggplot(unit_weights_df, aes(x = unit, y = weight)) +
+  geom_col(fill = "#f48c06", alpha = 1) +
+  scale_y_continuous(labels = scales::label_percent()) +
+  theme_bachelor_project() +
+  labs(x = NULL, y = NULL)
+
+time_weights_plot <- ggplot(time_weights_df, aes(x = time, y = weight)) +
+  geom_col(fill = "#52b69a", alpha = 1) +
+  scale_y_continuous(labels = scales::label_percent()) +
+  theme_bachelor_project() +
+  labs(x = NULL, y = NULL)
+
+weights_plot <- unit_weights_plot / time_weights_plot
+
+weights_plot
+
+```
+
+# Referencer {#sec-referencer}

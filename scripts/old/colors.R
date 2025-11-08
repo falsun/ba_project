@@ -1,0 +1,7 @@
+colors = c("#ffba08", "#f48c06", "#dc2f02", "#9d0208", "#370617"),
+colors = c("white", "#ffba08", "#dc2f02", "#370617", "black"),
+colors = c("#e9d8a6", "#ee9b00", "#ca6702", "#bb3e03", "#ae2012"),
+colors = c("#faa275", "#ff8c61", "#ce6a85", "#985277", "#5c374c"),
+colors = c("#d9ed92", "#99d98c", "#52b69a", "#168aad", "#1e6091"),
+colors = c("#03045e", "#0077b6", "#00b4d8", "#90e0ef", "#caf0f8"),
+colors = c("#F8FFE5", "#F0C4C2", "#E8889F", "#E04D7C", "#D81159"),

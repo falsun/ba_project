@@ -28,12 +28,25 @@ toc-indent: 1.6em
 number-sections: true
 number-depth: 3
 
-
 # -- PAGE LAYOUT --
 papersize: a4
 justify: true
 hyphenate: true
 linestretch: 1.45
+
+# -- CHUNK OPTIONS --
+execute:
+  echo: false
+  message: false
+  warning: false
+  include: true
+
+# -- FIG OPTIONS --
+knitr:
+  opts_chunk:
+    dev: "svglite"
+    fig-width: 15.24
+    fig-asp: 0.75
 
 # -- Typst Settings --
 format:
@@ -52,25 +65,3 @@ format:
       - text: |
           #show link: set text(fill: rgb(0, 0, 255))
           #show ref: set text(fill: rgb(0, 0, 255))
-
-# -- HTML Settings --
-  html:
-    theme:
-      light: flatly
-      dark: darkly
-    respect-user-color-scheme: true
-    code-fold: true
-    code-summary: "show code"
-    code-tools: true
-    code-link: true
-    toc-location: left
-
-  # -- PDF (via LaTeX) Settings --
-  pdf:
-    documentclass: article
-    geometry: "left=30.60mm,right=30.60mm,top=30.60mm,bottom=40.20mm"
-    mainfont: "IBM Plex Serif"
-    sansfont: "IBM Plex Sans"
-    monofont: "IBM Plex Mono"
-    mathfont: "IBM Plex Math"
-    fontsize: 12pt

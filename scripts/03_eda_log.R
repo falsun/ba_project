@@ -3,9 +3,9 @@
 #   Project:      NATO Defence Spending Bachelor's Thesis
 #   Script:       02_eda.R
 #   Author:       Frederik Bender Bøeck-Nielsen
-#   Date:         2025-10-21
+#   Date:         2025-11-07
 #   Description:  This script generates descriptive statistics tables and EDA
-#                 visualizations for the pre-treatment period.
+#                 visualizations for the pre-treatment period (logged variables).
 #
 # ---------------------------------------------------------------------------- #
 
@@ -21,26 +21,19 @@ DIR_FIG <- here::here("_output", "_figures")
 if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
-CLEAN_PANEL <- file.path(DIR_DATA, "clean_panel.rds")
 LOG_PANEL <- file.path(DIR_DATA, "log_panel.rds")
+FD_PANEL <- file.path(DIR_DATA, "fd_panel.rds")
 
 VARS_FOR_EDA <- c(
-  "milex_gdp" = "Military Spending (% of GDP)",
-  "milex_usd" = "Military Spending (Constant 2023 US$)(Millions)",
-  "pop"       = "Population (Millions)",
-  "gdp_cap"   = "GDP per Capita ($1,000s)",
-  "trade_gdp" = "Trade Openness (% of GDP)",
-  "lib_dem"   = "Liberal Democracy Index (0-1)"
+  "log_milex_gdp" = "Military Spending (% of GDP)(Log)",
+  "log_milex_usd" = "Military Spending (US$)(Log)",
+  "log_pop" = "Population (Log)",
+  "log_gdp_cap" = "GDP per Capita (Log)",
+  "log_trade_gdp" = "Trade Openness (Log)",
+  "lib_dem" = "Liberal Democracy Index (0-1)"
 )
 
-MANUAL_BREAKS <- list(
-  milex_gdp = seq(0, 4, by = 1),
-  milex_usd = seq(0, 70000, by = 17500),
-  pop       = seq(0, 140, by = 35),
-  gdp_cap   = seq(0, 140, by = 35),
-  trade_gdp = seq(0, 400, by = 100),
-  lib_dem   = seq(0, 1, by = 0.25)
-)
+MANUAL_BREAKS <- list()
 
 MANUAL_BINWIDTHS <- list()
 
@@ -50,7 +43,9 @@ message("--- Section 1: Setting Up Environment ---")
 
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse, gtsummary, gt, psych, ggcorrplot, conflicted, stringr)
+
 conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
 conflict_prefer("alpha", "ggplot2")
 
 source(file.path(DIR_SCRIPTS, "00_functions.R"))
@@ -60,15 +55,13 @@ options(scipen = 999)
 # 2. PREPARE DATA ============================================================
 message("--- Section 2: Loading and Preparing Data ---")
 
-clean_panel <- readRDS(CLEAN_PANEL)
+log_panel <- readRDS(LOG_PANEL)
 
-pre_treat_df <- clean_panel %>%
+pre_treat_df <- log_panel %>%
   filter(post_treat == 0) %>%
   filter(group %in% c("control", "treatment")) %>%
   mutate(
-    group   = factor(group, levels = c("treatment", "control")),
-    gdp_cap = gdp_cap / 1000,
-    pop     = pop / 1000000
+    group = factor(group, levels = c("treatment", "control"))
   ) %>%
   select(group, iso3c, year, all_of(names(VARS_FOR_EDA)))
 
@@ -81,7 +74,7 @@ create_corr_plot(
   vars       = names(VARS_FOR_EDA),
   title      = "Pre-Treatment Correlation Matrix (2014-2021)",
   output_dir = DIR_FIG,
-  file_name  = "correlation_matrix.png"
+  file_name  = "log_correlation_matrix.png"
 )
 
 # 4. TABLE 1: PRE-TREATMENT BALANCE ==========================================
@@ -116,8 +109,8 @@ table_1_bal <- country_avg_df %>%
   modify_caption("**Table 1: Pre-Treatment Balance (2014-2021)**")
 
 print(table_1_bal)
-gtsave(as_gt(table_1_bal), file = file.path(DIR_TAB, "table_1_balance.png"), vwidth = 1000)
-saveRDS(table_1_bal, file = file.path(DIR_TAB, "table_1_balance.rds"))
+gtsave(as_gt(table_1_bal), file = file.path(DIR_TAB, "table_1_log_balance.png"), vwidth = 1000)
+saveRDS(table_1_bal, file = file.path(DIR_TAB, "table_1_log_balance.rds"))
 
 
 # 5. TABLE 2: DETAILED DESCRIPTIVES ==========================================
@@ -142,8 +135,8 @@ table_2_det_bal <- pre_treat_df %>%
   modify_caption("**Table 2: Pre-Treatment Descriptive Statistics (2014-2021)**")
 
 print(table_2_det_bal)
-gtsave(as_gt(table_2_det_bal), file = file.path(DIR_TAB, "table_2_det_balance.png"), vwidth = 1000)
-saveRDS(table_2_det_bal, file = file.path(DIR_TAB, "table_2_det_balance.rds"))
+gtsave(as_gt(table_2_det_bal), file = file.path(DIR_TAB, "table_2_log_det_balance.png"), vwidth = 1000)
+saveRDS(table_2_det_bal, file = file.path(DIR_TAB, "table_2_log_det_balance.rds"))
 
 
 # 6. GENERATE DISTRIBUTION PLOTS =============================================
@@ -162,27 +155,34 @@ for (var in names(VARS_FOR_EDA)) {
 }
 
 
-# 7. TRANSFORM & SAVE DATA ===================================================
-message("--- Section 7: Logging Covariates and Saving Data ---")
+# 8. FIRST-DIFFERENCE & SAVE DATA ============================================
+message("--- Section 8: First-Differencing Variables and Saving Data ---")
 
-log_panel <- clean_panel %>%
+# We must arrange by country and year to ensure lag() is correct
+fd_panel <- log_panel %>%
+  arrange(iso3c, year) %>%
+  # Group by country so lag() doesn't pull from the previous country
+  group_by(iso3c) %>%
+  # Create first-differenced (year-to-year change) variables
   mutate(
-    log_milex_gdp = log(milex_gdp),
-    log_milex_usd = log(milex_usd),
-    log_pop       = log(pop),
-    log_gdp_cap   = log(gdp_cap),
-    log_trade_gdp = log(trade_gdp)
+    fd_log_milex_gdp = log_milex_gdp - lag(log_milex_gdp),
+    fd_log_milex_usd = log_milex_usd - lag(log_milex_usd)
   ) %>%
-  relocate(log_milex_gdp, .after = milex_gdp) %>%
-  relocate(log_milex_usd, .after = milex_usd) %>%
-  relocate(log_pop, .after = pop) %>%
-  relocate(log_gdp_cap, .after = gdp_cap) %>%
-  relocate(log_trade_gdp, .after = trade_gdp)
+  # Ungroup after calculations
+  ungroup() %>%
+  # (Optional) Relocate new variables for clarity
+  relocate(fd_log_milex_gdp, .after = log_milex_gdp) %>%
+  relocate(fd_log_milex_usd, .after = log_milex_usd)
 
-saveRDS(log_panel, file = LOG_PANEL)
+# Note: The first year (2014) for each country will be NA
+# This is correct and expected.
 
+saveRDS(fd_panel, file = FD_PANEL)
+
+
+# 9. SCRIPT COMPLETION =======================================================
 message(paste(
-  "\n--- Script 02_eda.R finished ---",
+  "\n--- Script 03_eda_log.R finished ---",
   "\nAll output (tables and figures) saved to:", here::here("_output"),
-  "\nLogged master panel data frame saved to: ", LOG_PANEL
+  "\nFirst-differenced panel data frame saved to: ", FD_PANEL
 ))

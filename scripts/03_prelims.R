@@ -13,18 +13,18 @@
 # 0. CONFIGURATION & PARAMETERS ==============================================
 message("--- Section 0: Loading Configuration ---")
 
-DIR_DATA         <- here::here("data", "_processed")
-DIR_SCRIPTS      <- here::here("scripts")
-DIR_TAB          <- here::here("_output", "_tables")
-DIR_FIG          <- here::here("_output", "_figures")
+DIR_DATA <- here::here("data", "_processed")
+DIR_SCRIPTS <- here::here("scripts")
+DIR_TAB <- here::here("_output", "_tables")
+DIR_FIG <- here::here("_output", "_figures")
 
 if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
-MASTER_PANEL_LOG <- file.path(DIR_DATA, "master_panel_log.rds")
+LOG_PANEL <- file.path(DIR_DATA, "log_panel.rds")
 
 VARS_FOR_PRELIM <- c(
-  "milex_gdp"     = "Military Spending (% of GDP)"
+  "log_milex_usd" = "Military Spending (Constant US$)"
 )
 
 
@@ -45,14 +45,14 @@ options(scipen = 999)
 # 2. PREPARE DATA ============================================================
 message("--- Section 2: Loading and Preparing Data ---")
 
-master_panel_log <- readRDS(MASTER_PANEL_LOG)
+log_panel <- readRDS(LOG_PANEL)
 
-TREATMENT_YEAR <- master_panel_log %>%
+TREATMENT_YEAR <- log_panel %>%
   filter(group == "treatment", post_treat == 1) %>%
   pull(year) %>%
   min()
 
-analysis_df <- master_panel_log %>%
+analysis_df <- log_panel %>%
   select(group, iso3c, year, post_treat, all_of(names(VARS_FOR_PRELIM))) %>%
   filter(group %in% c("control", "treatment"))
 
@@ -63,7 +63,6 @@ pre_treat_df <- analysis_df %>% filter(post_treat == 0)
 message("--- Section 3: Generating Time-Series Plots ---")
 
 for (var in names(VARS_FOR_PRELIM)) {
-
   create_aggregated_ts_plot(
     data = analysis_df,
     var_name = !!sym(var),
@@ -88,18 +87,21 @@ for (var in names(VARS_FOR_PRELIM)) {
 message("--- Section 4: Testing for Stationarity (ADF) ---")
 
 safe_adf_test <- function(data_vector) {
-  tryCatch({
-    test <- tseries::adf.test(data_vector, alternative = "stationary")
-    tibble::tibble(statistic = test$statistic, p.value = test$p.value)
-  }, error = function(e) {
-    tibble::tibble(statistic = NA, p.value = NA)
-  })
+  tryCatch(
+    {
+      test <- tseries::adf.test(data_vector, alternative = "stationary")
+      tibble::tibble(statistic = test$statistic, p.value = test$p.value)
+    },
+    error = function(e) {
+      tibble::tibble(statistic = NA, p.value = NA)
+    }
+  )
 }
 
 adf_results <- pre_treat_df %>%
   group_by(iso3c, group) %>%
   arrange(year) %>%
-  summarise(adf_test_result = list(safe_adf_test(milex_gdp)), .groups = 'drop') %>%
+  summarise(adf_test_result = list(safe_adf_test(log_milex_usd)), .groups = "drop") %>%
   tidyr::unnest(adf_test_result)
 
 non_stationary_series <- adf_results %>%
@@ -133,7 +135,7 @@ if (nrow(non_stationary_series) > 0) {
 message("--- Section 5: Testing for Cross-Sectional Dependence ---")
 
 p_pre_treat_df <- pdata.frame(pre_treat_df, index = c("iso3c", "year"))
-cd_test_result <- pcdtest(milex_gdp ~ 1, data = p_pre_treat_df)
+cd_test_result <- pcdtest(log_milex_usd ~ 1, data = p_pre_treat_df)
 
 print(cd_test_result)
 

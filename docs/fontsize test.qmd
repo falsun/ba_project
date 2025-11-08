@@ -1,0 +1,53 @@
+---
+title: "Untitled"
+format: typst
+editor: visual
+---
+
+`{{=typst}} #set text(size: 10pt)[`
+
+```{r}
+#| label: tbl-sdid1-results
+#| tbl-cap: "SDID Model Results"
+#| tbl-cap-location: top
+
+combined_att_data <- tibble(
+  Model = c("Main (2022-2024)", "PIT (2019-2021)"),
+  Estimate = c(att, placebo_att),
+  Std.Error = c(se, placebo_se),
+  ci.lower = c(ci_lower, placebo_ci_lower),
+  ci.upper = c(ci_upper, placebo_ci_upper),
+  p.value = c(p_value, placebo_p_value),
+  RMSE = c(rmse, rmse_placebo)
+)
+
+sdid1_results <- combined_att_data %>%
+  gt() %>%
+  cols_label(
+    Model = "Model",
+    Estimate = "ATT",
+    Std.Error = "Std. Error",
+    ci.lower = "95% CI",
+    p.value = "P-Value",
+    RMSE = "RMSE"
+  ) %>%
+  fmt_number(columns = c(Estimate, Std.Error, ci.lower, ci.upper, RMSE), decimals = 3) %>%
+  cols_merge(columns = c(ci.lower, ci.upper), pattern = "[{1}–{2}]") %>%
+  fmt(
+    columns = p.value,
+    fns = function(x) gtsummary::style_pvalue(x, digits = 3)
+  ) %>%
+  tab_source_note("Note: Standard errors and p-values computed via robust bootstrap method.") %>%
+  tab_footnote(
+    footnote = "Placebo In-Time Model.",
+    locations = cells_body(
+      columns = Model,
+      rows = Model == "PIT (2019-2021)"
+    )
+  ) %>%
+  theme_gt_bachelor_project() # Your theme function (without tab_options)
+
+sdid1_results
+```
+
+`{{=typst}} ]`
