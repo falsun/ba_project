@@ -3,9 +3,9 @@
 #   Project:      NATO Defence Spending Bachelor's Thesis
 #   Script:       02_eda.R
 #   Author:       Frederik Bender Bøeck-Nielsen
-#   Date:         2025-11-17 (Final)
-#   Description:  Generates descriptive statistics tables, correlation matrices,
-#                 distribution plots, and Z-score outlier reports.
+#   Date:         2025-11-09
+#   Description:  This script generates descriptive statistics tables and EDA
+#                 visualizations.
 #
 # ---------------------------------------------------------------------------- #
 
@@ -25,23 +25,24 @@ MASTER_PANEL <- file.path(DIR_DATA, "master_panel.rds")
 
 TREATMENT_YEAR <- 2022
 
-# Ensure these match your master_panel columns exactly
 VARS_FOR_EDA <- c(
-  "milex_usd_log" = "Log Mil. Exp. (Const. 2023 US$)",
-  "milex_cap"     = "Mil. Exp. Per Capita",
-  "milex_cap_log" = "Log Mil. Exp. Per Capita",
+  "milex_usd_log" = "Log(Mil. Exp. Const. 2023 US$)",
+  "milex_cap"     = "Mil. Exp. per Capita",
+  "milex_cap_log" = "Log(Mil. Exp. per Capita)",
   "milex_gdp"     = "Mil. Exp. % of GDP",
-  "milex_gdp_log" = "Log Mil. Exp. % of GDP",
+  "milex_gdp_log" = "Log(Mil. Exp. % of GDP)",
+  "milex_gov"     = "Mil. Exp. % of Govt. Spending",
+  "milex_gov_log" = "Log(Mil. Exp. % of Govt. Spending)",
   "pop"           = "Population",
-  "pop_log"       = "Log Population",
-  "gdp_cap"       = "GDP Per Capita (PPP 2017 $)",
-  "gdp_cap_log"   = "Log GDP Per Capita",
-  "trade_gdp"     = "Trade (% of GDP)",
-  "lib_dem"       = "Liberal Democracy Index"
+  "pop_log"       = "Log(Population)",
+  "gdp_cap"       = "GDP per Capita (PPP, constant 2017 intl. $)",
+  "gdp_cap_log"   = "Log(GDP per Capita)",
+  "trade_gdp"     = "Trade % of GDP",
+  "lib_dem"       = "Liberal Democracy Score (0-1 Index)"
 )
 
-# Optional: Define manual scales if needed (can leave empty)
 MANUAL_BREAKS <- list()
+
 MANUAL_BINWIDTHS <- list()
 
 
@@ -49,17 +50,7 @@ MANUAL_BINWIDTHS <- list()
 message("--- Section 1: Setting Up Environment ---")
 
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(
-  tidyverse,
-  gtsummary,
-  gt,
-  psych,
-  ggcorrplot,
-  conflicted,
-  stringr,
-  glue # Added glue
-)
-
+pacman::p_load(tidyverse, gtsummary, gt, psych, ggcorrplot, conflicted, stringr)
 conflict_prefer("filter", "dplyr")
 conflict_prefer("alpha", "ggplot2")
 
@@ -85,11 +76,11 @@ pre_df <- ts_df %>%
 message("--- Section 3: Checking Correlation ---")
 
 create_corr_plot(
-  data        = pre_df,
-  vars        = names(VARS_FOR_EDA),
-  title       = "Pre-Treatment Outcome Correlation Matrix (2014-2021)",
-  output_dir  = DIR_FIG,
-  file_name   = "outcome_correlation_matrix.png"
+  data       = pre_df,
+  vars       = names(VARS_FOR_EDA),
+  title      = "Pre-Treatment Outcome Correlation Matrix (2014-2021)",
+  output_dir = DIR_FIG,
+  file_name  = "outcome_correlation_matrix.png"
 )
 
 # 4. TABLE 1: PRE-TREATMENT BALANCE ==========================================
@@ -152,12 +143,10 @@ print(table_2_det_bal)
 gtsave(as_gt(table_2_det_bal), file = file.path(DIR_TAB, "table_2_outcome_det_balance.html"))
 
 
-# 6. GENERATE OUTLIER REPORTS (Z-SCORE) ======================================
-message("--- Section 6: Generating Outlier Reports (IQR + Z-Score) ---")
+# 7. GENERATE OUTLIER REPORTS ================================================
+message("--- Section 8: Generating Outlier Reports ---")
 
-# Loop through each variable and call the updated function
 for (var in names(VARS_FOR_EDA)) {
-  # The function now handles Z-score calculation internally
   create_outlier_table(
     data = pre_df,
     var_name = !!sym(var),
@@ -168,8 +157,8 @@ for (var in names(VARS_FOR_EDA)) {
 }
 
 
-# 7. GENERATE DISTRIBUTION PLOTS =============================================
-message("--- Section 7: Generating Distribution Plots ---")
+# 6. GENERATE DISTRIBUTION PLOTS =============================================
+message("--- Section 6: Generating Distribution Plots ---")
 
 for (var in names(VARS_FOR_EDA)) {
   create_distribution_plot(
@@ -185,7 +174,7 @@ for (var in names(VARS_FOR_EDA)) {
 
 
 # 8. GENERATE AGGREGATED TIME-SERIES PLOTS ===================================
-message("--- Section 8: Generating Aggregated Time-Series Plots ---")
+message("--- Section 7: Generating Aggregated Time-Series Plots ---")
 
 for (var in names(VARS_FOR_EDA)) {
   create_aggregated_ts_plot(

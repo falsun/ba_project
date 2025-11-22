@@ -45,7 +45,7 @@ execute:
 knitr:
   opts_chunk:
     dev: "svglite"
-    fig-width: 15.24
+    fig-width: 15
     fig-asp: 0.75
 
 # -- Typst Settings --
@@ -56,9 +56,9 @@ format:
     font-paths: ../fonts/
     columns: 1
     margin:
-      top: 2.88cm
-      bottom: 3.48cm
-      x: 2.88cm
+      top: 3cm
+      bottom: 3.5cm
+      x: 3cm
     fontsize: 12pt
     section-numbering: 1.1.1.
     include-in-header:

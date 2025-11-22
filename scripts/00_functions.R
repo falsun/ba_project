@@ -15,52 +15,61 @@ pacman::p_load(tidyverse, ggrepel, patchwork, ggridges, hrbrthemes, scales)
 
 # 2. CUSTOM THEME ============================================================
 
-# --- 1. DEFINE THE PROJECT'S OFFICIAL COLOR PALETTE ---
+## --- 2.1. DEFINE THE PROJECT'S OFFICIAL COLOR PALETTE -----------------------
 project_colors <- list(
   # Qualitative Palette
   treatment = "#0077b6",
-  control = "#f48c06",
-
+  control   = "#f48c06",
   # Diverging Palette
-  high = "#4F9D69",
-  mid = "#FFFFFF",
-  low = "#E54B4B"
+  high      = "#4F9D69",
+  mid       = "#FFFFFF",
+  low       = "#E54B4B"
 )
 
 
-# --- 2. CREATE THE CUSTOM PLOT THEME ---
+## --- 2.2 CREATE THE CUSTOM PLOT THEME ----
 theme_bachelor_project <- function(...) {
   hrbrthemes::theme_ipsum(
     base_family = "IBM Plex Sans",
     ...
   ) +
     theme(
-      legend.position = c(0.02, 0.98),
+      legend.position      = c(0.02, 0.98),
       legend.justification = c("left", "top"),
-      # legend.background = element_rect(fill = "white", color = "black", linewidth = 0.3),
-      legend.title = element_blank(),
-      plot.title = element_text(size = 18, color = "black"),
-      plot.subtitle = element_text(size = 14, color = "black"),
-      axis.title.x = element_text(size = 12, color = "black"),
-      axis.title.y = element_text(size = 12, color = "black"),
-      axis.text.x = element_text(size = 10, color = "black"),
-      axis.text.y = element_text(size = 10, color = "black"),
-      legend.text = element_text(size = 12, color = "black"),
-      panel.grid.minor = element_blank(),
-      panel.grid.major.x = element_blank(),
-      plot.margin = margin(t = 0, r = 0, b = 0, l = 0)
+      # legend.background  = element_rect(fill = "white", color = "black", linewidth = 0.3),
+      legend.title         = element_blank(),
+      plot.title           = element_text(size = 18, color = "black"),
+      plot.subtitle        = element_text(size = 14, color = "black"),
+      axis.title.x         = element_text(size = 12, color = "black"),
+      axis.title.y         = element_text(size = 12, color = "black"),
+      axis.text.x          = element_text(size = 10, color = "black"),
+      axis.text.y          = element_text(size = 10, color = "black"),
+      legend.text          = element_text(size = 12, color = "black"),
+      panel.grid.minor     = element_blank(),
+      panel.grid.major.x   = element_blank(),
+      plot.margin          = margin(t = 0, r = 0, b = 0, l = 0)
     )
 }
 
 
-# --- 3. CREATE THE CUSTOM GT TABLE THEME ---
+## --- 3. CREATE THE CUSTOM GT TABLE THEME ---
 theme_gt_bachelor_project <- function(data) {
+  numeric_cols <- data$`_data` %>%
+    select(where(is.numeric)) %>%
+    names()
+  p_val_col <- intersect(numeric_cols, "p.value")
+  other_numeric_cols <- setdiff(numeric_cols, p_val_col)
+
   data %>%
+    fmt(
+      columns = all_of(p_val_col),
+      fns = function(x) {
+        gtsummary::style_pvalue(x, digits = 3)
+      }
+    ) %>%
     fmt_number(
-      columns = where(is.numeric),
-      decimals = 3,
-      # dec_mark = ",",
-      # sep_mark = "."
+      columns = all_of(other_numeric_cols),
+      decimals = 3
     ) %>%
     opt_table_font(
       font = "IBM Plex Serif",
@@ -108,9 +117,9 @@ scale_fill_project_qual <- function(...) {
 
 scale_color_project_div <- function(midpoint = 0, ...) {
   scale_color_gradient2(
-    low = project_colors$low,
-    mid = project_colors$mid,
-    high = project_colors$high,
+    low      = project_colors$low,
+    mid      = project_colors$mid,
+    high     = project_colors$high,
     midpoint = midpoint,
     ...
   )
@@ -118,9 +127,9 @@ scale_color_project_div <- function(midpoint = 0, ...) {
 
 scale_fill_project_div <- function(midpoint = 0, ...) {
   scale_fill_gradient2(
-    low = project_colors$low,
-    mid = project_colors$mid,
-    high = project_colors$high,
+    low      = project_colors$low,
+    mid      = project_colors$mid,
+    high     = project_colors$high,
     midpoint = midpoint,
     ...
   )
@@ -203,10 +212,7 @@ create_distribution_plot <- function(data, var_name, var_label, manual_breaks = 
     lower_limit <- min(manual_breaks)
     upper_limit <- max(manual_breaks)
   } else {
-    lower_limit <- 0
-    if (startsWith(current_var_name, "log_")) {
-      lower_limit <- NA
-    }
+    lower_limit <- NA
     upper_limit <- NA
   }
   calculate_fd_bw <- function(x) {
@@ -317,14 +323,101 @@ create_distribution_plot <- function(data, var_name, var_label, manual_breaks = 
       legend.position = "top"
     )
 
-  file_name <- glue::glue("{current_var_name}_dist.png")
+  file_name <- glue::glue("dist_{current_var_name}.png")
   ggsave(file.path(output_dir, file_name), final_plot, width = 7, height = 9, bg = "white")
 
   return(final_plot)
 }
 
 
-# 5. AGGREGATED TIME SERIES PLOT =============================================
+# 5. OUTLIER REPORT TABLE ====================================================
+#'
+#' Identifies outliers (1.5*IQR rule) and generates a gt table report.
+#' Adds Z-scores for context.
+#'
+#' @param data A dataframe.
+#' @param var_name The name of the variable to scan (unquoted symbol).
+#' @param var_label A string for the table's title.
+#' @param output_dir The directory where the .html table will be saved.
+#' @param title An optional title for the table (used in tab_header).
+#'
+create_outlier_table <- function(data, var_name, var_label, output_dir, title = NULL) {
+  var_name_enquo <- enquo(var_name)
+  current_var_name <- quo_name(var_name_enquo)
+
+  # 1. Identify outliers and calculate Z-scores
+  outlier_data <- data %>%
+    group_by(group) %>%
+    mutate(
+      # IQR Logic
+      iqr = IQR({{ var_name_enquo }}, na.rm = TRUE),
+      upper_bound = quantile({{ var_name_enquo }}, 0.75, na.rm = TRUE) + 1.5 * iqr,
+      lower_bound = quantile({{ var_name_enquo }}, 0.25, na.rm = TRUE) - 1.5 * iqr,
+
+      # Calculate Z-Score for context
+      mean_val = mean({{ var_name_enquo }}, na.rm = TRUE),
+      sd_val = sd({{ var_name_enquo }}, na.rm = TRUE),
+      z_score = ({{ var_name_enquo }} - mean_val) / sd_val,
+
+      # Determine Type
+      outlier_type = case_when(
+        {{ var_name_enquo }} > upper_bound ~ "High",
+        {{ var_name_enquo }} < lower_bound ~ "Low",
+        TRUE ~ NA_character_
+      ),
+      is_outlier = !is.na(outlier_type)
+    ) %>%
+    filter(is_outlier) %>%
+    ungroup() %>%
+    # Select columns
+    select(iso3c, year, group, outlier_type, value = {{ var_name_enquo }}, z_score) %>%
+    # Sort by VALUE (High -> Low)
+    # This puts High outliers at the top and Low outliers at the bottom
+    arrange(desc(value))
+
+  # 2. If no outliers, print a message and exit
+  if (nrow(outlier_data) == 0) {
+    message(paste("  No outliers found for", current_var_name))
+    return(invisible(NULL))
+  }
+
+  # 3. Create and save the gt table
+  message(paste("  Saving outlier table for", current_var_name))
+
+  outlier_table <- gt(outlier_data) %>%
+    tab_header(
+      title = gt::md(glue::glue("**{title}**")),
+      subtitle = "Outliers defined by 1.5*IQR rule"
+    ) %>%
+    cols_label(
+      iso3c = "Country",
+      year = "Year",
+      group = "Group",
+      outlier_type = "Type",
+      value = "Value",
+      z_score = "Z-Score"
+    ) %>%
+    fmt_number(
+      columns = c(value, z_score),
+      decimals = 3
+    ) %>%
+    # Removed data_color() as requested
+    theme_gt_bachelor_project() %>%
+    fmt_number(
+      columns = year,
+      decimals = 0,
+      use_seps = FALSE
+    )
+
+  # Save as .html
+  file_name <- glue::glue("outliers_{current_var_name}.html")
+  gtsave(outlier_table, file = file.path(output_dir, file_name))
+
+  return(invisible(outlier_table))
+}
+
+
+# 6. AGGREGATED TIME SERIES PLOT =============================================
 #' Creates an aggregated time-series plot using the project's custom theme.
 #'
 #' @param data A dataframe containing the panel data.
@@ -359,14 +452,14 @@ create_aggregated_ts_plot <- function(data, var_name, var_label, treatment_year,
     ts_plot <- ts_plot + labs(title = title)
   }
 
-  file_name <- glue::glue("{current_var_name}_ts_aggregated.png")
+  file_name <- glue::glue("ts_agg_{current_var_name}.png")
   ggsave(file.path(output_dir, file_name), ts_plot, width = 8, height = 6, bg = "white")
 
   return(ts_plot)
 }
 
 
-# 6. INDIVIDUAL TIME SERIES PLOT =============================================
+# 7. INDIVIDUAL TIME SERIES PLOT =============================================
 create_spaghetti_ts_plot <- function(data, var_name, var_label, treatment_year,
                                      output_dir, title = NULL) {
   var_name_enquo <- enquo(var_name)
@@ -396,7 +489,7 @@ create_spaghetti_ts_plot <- function(data, var_name, var_label, treatment_year,
 }
 
 
-# 7. SDID PLOT STOCHASTIC (BOOSTRAP) CALCULATIONS ============================
+# 8. SDID PLOT STOCHASTIC (BOOSTRAP) CALCULATIONS ============================
 get_raw_sdid_plot <- function(estimate_obj, overlay = FALSE) {
   p_raw <- plot(estimate_obj,
     overlay = as.numeric(overlay),
@@ -412,7 +505,7 @@ get_raw_sdid_plot <- function(estimate_obj, overlay = FALSE) {
 }
 
 
-# 8. SDID PLOT STYLING =======================================================
+# 9. SDID PLOT STYLING =======================================================
 style_sdid_plot <- function(raw_plot, vline_year, plot_title) {
   p_styled <- raw_plot +
     geom_vline(xintercept = vline_year - 1, linetype = "dashed", color = "grey40") +
@@ -435,7 +528,7 @@ style_sdid_plot <- function(raw_plot, vline_year, plot_title) {
 }
 
 
-# 7. DUMBBELL ================================================================
+# 10. DUMBBELL ===============================================================
 #' Creates a dumbbell plot showing change between two years.
 #'
 #' @param data A dataframe containing panel data.

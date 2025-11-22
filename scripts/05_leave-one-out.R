@@ -1,0 +1,200 @@
+# ---------------------------------------------------------------------------- #
+#
+#   Project:      NATO Defence Spending Bachelor's Thesis
+#   Script:       06_robustness_leave_one_out.R
+#   Author:       Frederik Bender Bøeck-Nielsen
+#   Date:         2025-11-20
+#   Description:  Runs a Leave-One-Out (LOO) robustness test for the MAIN MODEL.
+#                 Outputs sorted Tables (Baseline floating) and colored Plots.
+#
+# ---------------------------------------------------------------------------- #
+
+# 0. CONFIGURATION & PARAMETERS ==============================================
+message("--- Section 0: Loading Configuration ---")
+
+# --- Variables to Test ---
+VARS_TO_TEST <- c(
+  "milex_usd_log",
+  "milex_gdp",
+  "milex_gdp_log",
+  "milex_cap",
+  "milex_cap_log"
+)
+
+# --- Define Directories ---
+DIR_DATA    <- here::here("data", "_processed")
+DIR_SCRIPTS <- here::here("scripts")
+DIR_TAB     <- here::here("_output", "_tables", "_robustness")
+DIR_FIG     <- here::here("_output", "_figures", "_robustness")
+
+if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
+if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
+
+MASTER_PANEL <- file.path(DIR_DATA, "master_panel.rds")
+
+
+# 1. ENVIRONMENT SETUP =======================================================
+message("--- Section 1: Setting Up Environment ---")
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  tidyverse,  # Data manipulation
+  fixest,     # feols, wald
+  broom,      # tidy()
+  glue,       # String interpolation
+  here,       # File paths
+  gt,         # Tables
+  gtsummary,  # P-value formatting
+  scales,     # Plot scales
+  conflicted
+)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+source(file.path(DIR_SCRIPTS, "00_functions.R"))
+
+options(scipen = 999)
+
+
+# 2. PREPARE DATA ============================================================
+message("--- Section 2: Loading and Preparing Data ---")
+
+master_panel <- readRDS(MASTER_PANEL)
+
+# Create analysis DF
+analysis_df <- master_panel %>%
+  filter(group %in% c("control", "treatment")) %>%
+  mutate(event_time = year - 2022)
+
+all_units_loo <- unique(analysis_df$iso3c)
+
+# Create a lookup table for group status (for plotting colors)
+unit_info <- analysis_df %>%
+  distinct(iso3c, group) %>%
+  rename(dropped_unit = iso3c)
+
+
+# 3. HELPER FUNCTION: RUN MAIN MODEL & EXTRACT ===============================
+run_main_spec <- function(data, var_name) {
+
+  # Main Model Formula (Group Trends + iso3c Cluster)
+  fml <- as.formula(glue("{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) | iso3c + year + treat_dummy[year]"))
+
+  mod <- feols(fml, data = data, cluster = ~iso3c)
+
+  # 1. Extract Estimates for Post-Treat Years
+  res <- tidy(mod) %>%
+    filter(term %in% c("event_time::0:treat_dummy", "event_time::1:treat_dummy", "event_time::2:treat_dummy")) %>%
+    select(term, estimate, p.value) %>%
+    mutate(year = case_when(
+      grepl("::0:", term) ~ "att_2022",
+      grepl("::1:", term) ~ "att_2023",
+      grepl("::2:", term) ~ "att_2024"
+    )) %>%
+    select(year, estimate, p.value)
+
+  # 2. Extract Pre-Trend F-Test
+  coefs <- names(coef(mod))
+  pre_terms <- coefs[grepl("event_time::", coefs) & grepl("-", coefs)]
+  p_pre <- NA
+  if (length(pre_terms) > 0) {
+    ft <- try(wald(mod, pre_terms), silent=TRUE)
+    if (!inherits(ft, "try-error")) p_pre <- ft$p[1]
+  }
+
+  # Pivot to wide format
+  res_wide <- res %>%
+    pivot_wider(names_from = year, values_from = c(estimate, p.value)) %>%
+    mutate(pre_trend_p = p_pre)
+
+  return(res_wide)
+}
+
+
+# 4. MAIN LOOP ===============================================================
+message(paste("--- Starting LOO loop for", length(VARS_TO_TEST), "variables ---"))
+
+for (VAR_TO_TEST in VARS_TO_TEST) {
+  message(paste("\n--- Processing:", VAR_TO_TEST, "---"))
+
+  # A. Run Baseline (Full Sample)
+  baseline <- run_main_spec(analysis_df, VAR_TO_TEST) %>%
+    mutate(dropped_unit = "Baseline")
+
+  # Capture Baseline 2024 estimate (for plot line)
+  base_att_2024 <- baseline$estimate_att_2024
+
+  # B. Run LOO Loop
+  loo_res <- map_dfr(all_units_loo, function(unit) {
+    dat_sub <- analysis_df %>% filter(iso3c != unit)
+    run_main_spec(dat_sub, VAR_TO_TEST) %>%
+      mutate(dropped_unit = unit)
+  })
+
+  # C. Combine & Add Group Info
+  final_df <- bind_rows(baseline, loo_res) %>%
+    left_join(unit_info, by = "dropped_unit") %>%
+    # If Baseline, set group to "Baseline" (for coloring)
+    mutate(group = ifelse(dropped_unit == "Baseline", "Baseline", group)) %>%
+    arrange(estimate_att_2024)
+
+  # --- OUTPUT 1: THE TABLE ---
+
+  table_data <- final_df %>%
+    mutate(
+      p_pre_fmt = gtsummary::style_pvalue(pre_trend_p, digits = 3),
+      att_2022_fmt = glue("{round(estimate_att_2022, 3)} ({gtsummary::style_pvalue(p.value_att_2022, digits = 3)})"),
+      att_2023_fmt = glue("{round(estimate_att_2023, 3)} ({gtsummary::style_pvalue(p.value_att_2023, digits = 3)})"),
+      att_2024_fmt = glue("{round(estimate_att_2024, 3)} ({gtsummary::style_pvalue(p.value_att_2024, digits = 3)})")
+    ) %>%
+    select(dropped_unit, att_2024_fmt, att_2023_fmt, att_2022_fmt, p_pre_fmt)
+
+  gt_tab <- gt(table_data) %>%
+    tab_header(
+      title = glue("Leave-One-Out Test (Main Model): {VAR_TO_TEST}"),
+      subtitle = "Sorted by 2024 ATT (ascending)"
+    ) %>%
+    cols_label(
+      dropped_unit = "Dropped Unit",
+      att_2024_fmt = "ATT 2024",
+      att_2023_fmt = "ATT 2023",
+      att_2022_fmt = "ATT 2022",
+      p_pre_fmt = "Pre-Trend (p)"
+    ) %>%
+    cols_align(align = "right", columns = 2:5) %>%
+    theme_gt_bachelor_project() %>%
+    tab_style(
+      style = cell_text(weight = "bold"),
+      locations = cells_body(rows = dropped_unit == "Baseline")
+    ) %>%
+    tab_source_note("ATT columns have p-values in parentheses.")
+
+  gtsave(gt_tab, file = file.path(DIR_TAB, glue("loo_table_{VAR_TO_TEST}.html")))
+
+
+  # --- OUTPUT 2: THE PLOT ---
+
+  # Prepare data: remove baseline for dots (it's a line), reorder for S-curve
+  plot_df <- final_df %>%
+    filter(dropped_unit != "Baseline") %>%
+    mutate(dropped_unit = fct_reorder(dropped_unit, estimate_att_2024, .desc = TRUE))
+
+  p_loo <- ggplot(plot_df, aes(x = estimate_att_2024, y = dropped_unit)) +
+    geom_vline(xintercept = base_att_2024, color = "grey40", linetype = "dashed") +
+    geom_point(aes(color = group), size = 2.5) +
+    scale_color_project_qual(name = NULL) +
+    labs(
+      title = glue("Leave-One-Out Test (Main Model): {VAR_TO_TEST}"),
+      x = "2024 ATT",
+      y = NULL,
+      caption = "Black line indicates baseline ATT"
+    ) +
+    theme_bachelor_project() +
+    theme(legend.position = "bottom")
+
+  ggsave(file.path(DIR_FIG, glue("loo_plot_{VAR_TO_TEST}.png")), p_loo, width = 8, height = 6)
+}
+
+# 5. SCRIPT COMPLETION =======================================================
+message(paste("\n--- Script 06_robustness_leave_one_out.R finished ---"))

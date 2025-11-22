@@ -3,9 +3,9 @@
 #   Project:      NATO Defence Spending Bachelor's Thesis
 #   Script:       02_eda.R
 #   Author:       Frederik Bender Bøeck-Nielsen
-#   Date:         2025-11-17 (Final)
-#   Description:  Generates descriptive statistics tables, correlation matrices,
-#                 distribution plots, and Z-score outlier reports.
+#   Date:         2025-10-21
+#   Description:  This script generates descriptive statistics tables and EDA
+#                 visualizations for the pre-treatment period.
 #
 # ---------------------------------------------------------------------------- #
 
@@ -15,33 +15,33 @@ message("--- Section 0: Loading Configuration ---")
 
 DIR_DATA <- here::here("data", "_processed")
 DIR_SCRIPTS <- here::here("scripts")
-DIR_TAB <- here::here("_output", "_tables", "_eda")
-DIR_FIG <- here::here("_output", "_figures", "_eda")
+DIR_TAB <- here::here("_output", "_tables")
+DIR_FIG <- here::here("_output", "_figures")
 
 if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
-MASTER_PANEL <- file.path(DIR_DATA, "master_panel.rds")
+CLEAN_PANEL <- file.path(DIR_DATA, "clean_panel.rds")
+LOG_PANEL <- file.path(DIR_DATA, "log_panel.rds")
 
-TREATMENT_YEAR <- 2022
-
-# Ensure these match your master_panel columns exactly
 VARS_FOR_EDA <- c(
-  "milex_usd_log" = "Log Mil. Exp. (Const. 2023 US$)",
-  "milex_cap"     = "Mil. Exp. Per Capita",
-  "milex_cap_log" = "Log Mil. Exp. Per Capita",
-  "milex_gdp"     = "Mil. Exp. % of GDP",
-  "milex_gdp_log" = "Log Mil. Exp. % of GDP",
-  "pop"           = "Population",
-  "pop_log"       = "Log Population",
-  "gdp_cap"       = "GDP Per Capita (PPP 2017 $)",
-  "gdp_cap_log"   = "Log GDP Per Capita",
-  "trade_gdp"     = "Trade (% of GDP)",
-  "lib_dem"       = "Liberal Democracy Index"
+  "milex_gdp" = "Military Spending (% of GDP)",
+  "milex_usd" = "Military Spending (Constant 2023 US$)(Millions)",
+  "pop"       = "Population (Millions)",
+  "gdp_cap"   = "GDP per Capita ($1,000s)",
+  "trade_gdp" = "Trade Openness (% of GDP)",
+  "lib_dem"   = "Liberal Democracy Index (0-1)"
 )
 
-# Optional: Define manual scales if needed (can leave empty)
-MANUAL_BREAKS <- list()
+MANUAL_BREAKS <- list(
+  milex_gdp = seq(0, 4, by = 1),
+  milex_usd = seq(0, 70000, by = 17500),
+  pop       = seq(0, 140, by = 35),
+  gdp_cap   = seq(0, 140, by = 35),
+  trade_gdp = seq(0, 400, by = 100),
+  lib_dem   = seq(0, 1, by = 0.25)
+)
+
 MANUAL_BINWIDTHS <- list()
 
 
@@ -49,35 +49,27 @@ MANUAL_BINWIDTHS <- list()
 message("--- Section 1: Setting Up Environment ---")
 
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(
-  tidyverse,
-  gtsummary,
-  gt,
-  psych,
-  ggcorrplot,
-  conflicted,
-  stringr,
-  glue # Added glue
-)
-
+pacman::p_load(tidyverse, gtsummary, gt, psych, ggcorrplot, conflicted, stringr)
 conflict_prefer("filter", "dplyr")
 conflict_prefer("alpha", "ggplot2")
 
 source(file.path(DIR_SCRIPTS, "00_functions.R"))
 
+options(scipen = 999)
+
 # 2. PREPARE DATA ============================================================
 message("--- Section 2: Loading and Preparing Data ---")
 
-master_panel <- readRDS(MASTER_PANEL)
+clean_panel <- readRDS(CLEAN_PANEL)
 
-# 1. Create the full time-series df for plots
-ts_df <- master_panel %>%
-  filter(group %in% c("control", "treatment")) %>%
-  mutate(group = factor(group, levels = c("treatment", "control")))
-
-# 2. Create the pre-treatment df for tables and dist plots
-pre_df <- ts_df %>%
+pre_treat_df <- clean_panel %>%
   filter(post_treat == 0) %>%
+  filter(group %in% c("control", "treatment")) %>%
+  mutate(
+    group   = factor(group, levels = c("treatment", "control")),
+    gdp_cap = gdp_cap / 1000,
+    pop     = pop / 1000000
+  ) %>%
   select(group, iso3c, year, all_of(names(VARS_FOR_EDA)))
 
 
@@ -85,17 +77,17 @@ pre_df <- ts_df %>%
 message("--- Section 3: Checking Correlation ---")
 
 create_corr_plot(
-  data        = pre_df,
-  vars        = names(VARS_FOR_EDA),
-  title       = "Pre-Treatment Outcome Correlation Matrix (2014-2021)",
-  output_dir  = DIR_FIG,
-  file_name   = "outcome_correlation_matrix.png"
+  data       = pre_treat_df,
+  vars       = names(VARS_FOR_EDA),
+  title      = "Pre-Treatment Correlation Matrix (2014-2021)",
+  output_dir = DIR_FIG,
+  file_name  = "correlation_matrix.png"
 )
 
 # 4. TABLE 1: PRE-TREATMENT BALANCE ==========================================
 message("--- Section 4: Generating Table 1 (Balance) ---")
 
-country_avg_df <- pre_df %>%
+country_avg_df <- pre_treat_df %>%
   group_by(group, iso3c) %>%
   summarise(across(all_of(names(VARS_FOR_EDA)), \(x) mean(x, na.rm = TRUE)), .groups = "drop")
 
@@ -121,10 +113,11 @@ table_1_bal <- country_avg_df %>%
     conf.low ~ "**95% CI**"
   ) %>%
   modify_spanning_header(everything() ~ NA) %>%
-  modify_caption("**Table 1: Pre-Treatment Outcome Balance (2014-2021)**")
+  modify_caption("**Table 1: Pre-Treatment Balance (2014-2021)**")
 
 print(table_1_bal)
-gtsave(as_gt(table_1_bal), file = file.path(DIR_TAB, "table_1_outcome_balance.html"))
+gtsave(as_gt(table_1_bal), file = file.path(DIR_TAB, "table_1_balance.png"), vwidth = 1000)
+saveRDS(table_1_bal, file = file.path(DIR_TAB, "table_1_balance.rds"))
 
 
 # 5. TABLE 2: DETAILED DESCRIPTIVES ==========================================
@@ -134,7 +127,7 @@ kurtosis <- function(x, na.rm = TRUE) {
   psych::kurtosi(x, na.rm = na.rm)
 }
 
-table_2_det_bal <- pre_df %>%
+table_2_det_bal <- pre_treat_df %>%
   select(group, all_of(names(VARS_FOR_EDA))) %>%
   tbl_summary(
     by = group,
@@ -146,34 +139,19 @@ table_2_det_bal <- pre_df %>%
   modify_footnote(
     all_stat_cols() ~ "min-max (skew, excess kurtosis)"
   ) %>%
-  modify_caption("**Table 2: Pre-Treatment Outcome Descriptive Statistics (2014-2021)**")
+  modify_caption("**Table 2: Pre-Treatment Descriptive Statistics (2014-2021)**")
 
 print(table_2_det_bal)
-gtsave(as_gt(table_2_det_bal), file = file.path(DIR_TAB, "table_2_outcome_det_balance.html"))
+gtsave(as_gt(table_2_det_bal), file = file.path(DIR_TAB, "table_2_det_balance.png"), vwidth = 1000)
+saveRDS(table_2_det_bal, file = file.path(DIR_TAB, "table_2_det_balance.rds"))
 
 
-# 6. GENERATE OUTLIER REPORTS (Z-SCORE) ======================================
-message("--- Section 6: Generating Outlier Reports (IQR + Z-Score) ---")
-
-# Loop through each variable and call the updated function
-for (var in names(VARS_FOR_EDA)) {
-  # The function now handles Z-score calculation internally
-  create_outlier_table(
-    data = pre_df,
-    var_name = !!sym(var),
-    var_label = VARS_FOR_EDA[var],
-    output_dir = DIR_TAB,
-    title = glue::glue("Outlier Report for {VARS_FOR_EDA[var]} (2014-2021)")
-  )
-}
-
-
-# 7. GENERATE DISTRIBUTION PLOTS =============================================
-message("--- Section 7: Generating Distribution Plots ---")
+# 6. GENERATE DISTRIBUTION PLOTS =============================================
+message("--- Section 6: Generating Distribution Plots ---")
 
 for (var in names(VARS_FOR_EDA)) {
   create_distribution_plot(
-    data = pre_df,
+    data = pre_treat_df,
     var_name = !!sym(var),
     var_label = VARS_FOR_EDA[var],
     manual_breaks = MANUAL_BREAKS[[var]],
@@ -184,21 +162,27 @@ for (var in names(VARS_FOR_EDA)) {
 }
 
 
-# 8. GENERATE AGGREGATED TIME-SERIES PLOTS ===================================
-message("--- Section 8: Generating Aggregated Time-Series Plots ---")
+# 7. TRANSFORM & SAVE DATA ===================================================
+message("--- Section 7: Logging Covariates and Saving Data ---")
 
-for (var in names(VARS_FOR_EDA)) {
-  create_aggregated_ts_plot(
-    data = ts_df,
-    var_name = !!sym(var),
-    var_label = VARS_FOR_EDA[var],
-    treatment_year = TREATMENT_YEAR,
-    output_dir = DIR_FIG,
-    title = glue::glue("Aggregated Trends for {VARS_FOR_EDA[var]}")
-  )
-}
+log_panel <- clean_panel %>%
+  mutate(
+    log_milex_gdp = log(milex_gdp),
+    log_milex_usd = log(milex_usd),
+    log_pop       = log(pop),
+    log_gdp_cap   = log(gdp_cap),
+    log_trade_gdp = log(trade_gdp)
+  ) %>%
+  relocate(log_milex_gdp, .after = milex_gdp) %>%
+  relocate(log_milex_usd, .after = milex_usd) %>%
+  relocate(log_pop, .after = pop) %>%
+  relocate(log_gdp_cap, .after = gdp_cap) %>%
+  relocate(log_trade_gdp, .after = trade_gdp)
+
+saveRDS(log_panel, file = LOG_PANEL)
 
 message(paste(
   "\n--- Script 02_eda.R finished ---",
-  "\nAll output (tables and figures) saved to:", here::here("_output")
+  "\nAll output (tables and figures) saved to:", here::here("_output"),
+  "\nLogged master panel data frame saved to: ", LOG_PANEL
 ))

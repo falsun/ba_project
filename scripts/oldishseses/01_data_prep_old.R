@@ -13,26 +13,26 @@
 # 0. CONFIGURATION & PARAMETERS ==============================================
 message("--- Section 0: Loading Configuration ---")
 
-DIR_DATA_RAW <- here::here("data", "raw")
-DIR_DATA_PROC <- here::here("data", "_processed")
+DIR_DATA_RAW      <- here::here("data", "raw")
+DIR_DATA_PROC     <- here::here("data", "_processed")
 
 if (!dir.exists(DIR_DATA_PROC)) dir.create(DIR_DATA_PROC, recursive = TRUE)
 
-COUNTRY_SAMPLE <- file.path(DIR_DATA_RAW, "country_sample.xlsx")
-SIPRI_MILEX <- file.path(DIR_DATA_RAW, "sipri_milex_2025p.xlsx")
-CLEAN_PANEL <- file.path(DIR_DATA_PROC, "clean_panel.rds")
+COUNTRY_SAMPLE    <- file.path(DIR_DATA_RAW, "country_sample.xlsx")
+SIPRI_MILEX       <- file.path(DIR_DATA_RAW, "sipri_milex_2025p.xlsx")
+MASTER_PANEL      <- file.path(DIR_DATA_PROC, "master_panel.rds")
 
-START_YEAR <- 2014 # Russian annexation of Crimea and NATO Wales Summit
-END_YEAR <- 2024 # Latest available data for most key variables
-TREAT_YEAR <- 2022 # Full-scale Russian invasion of Ukraine
+START_YEAR        <- 2014 # Russian annexation of Crimea and NATO Wales Summit
+END_YEAR          <- 2024 # Latest available data for most key variables
+TREAT_YEAR        <- 2022 # Full-scale Russian invasion of Ukraine
 
-TREATMENT_SEC_MAN <- c()
-CONTROL_SEC_MAN <- c("CHL", "ISR", "MEX", "TUR", "USA")
+TREATMENT_SEC_MAN <- c("GRC") # Geopolitical outlier
+CONTROL_SEC_MAN   <- c("CHL", "ISR", "MEX", "TUR", "USA") # Geographic/political outliers
 
 WDI_IND <- c(
-  pop       = "SP.POP.TOTL", # Population, total
-  gdp_cap   = "NY.GDP.PCAP.PP.KD", # GDP per capita, PPP (constant 2021 intl $)
-  trade_gdp = "NE.TRD.GNFS.ZS" # Trade as % of GDP
+  pop       = "SP.POP.TOTL",         # Population, total
+  gdp_cap   = "NY.GDP.PCAP.PP.KD",   # GDP per capita, PPP (constant 2021 intl $)
+  trade_gdp = "NE.TRD.GNFS.ZS"       # Trade as % of GDP
 )
 
 
@@ -41,15 +41,15 @@ message("--- Section 1: Setting Up Environment ---")
 
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(
-  here, # Robust file paths
-  tidyverse, # Data manipulation
-  readxl, # Read Excel files
-  janitor, # Cleaning data frames and column names
+  here,        # Robust file paths
+  tidyverse,   # Data manipulation
+  readxl,      # Read Excel files
+  janitor,     # Cleaning data frames and column names
   countrycode, # Convert country names/codes
-  WDI, # World Bank data
-  vdemdata, # V-Dem data
-  conflicted, # Function name conflicts
-  labelled # Label attributes
+  WDI,         # World Bank data
+  vdemdata,    # V-Dem data
+  conflicted,  # Function name conflicts
+  labelled     # Label attributes
 )
 
 conflict_prefer("filter", "dplyr")
@@ -109,7 +109,7 @@ country_sample <- read_excel(COUNTRY_SAMPLE, sheet = "sample") %>%
   mutate(
     group = case_when(
       iso3c %in% TREATMENT_SEC_MAN ~ "treatment_sec",
-      iso3c %in% CONTROL_SEC_MAN ~ "control_sec",
+      iso3c %in% CONTROL_SEC_MAN   ~ "control_sec",
       TRUE ~ group
     )
   ) %>%
@@ -127,16 +127,14 @@ SAMPLE_ISO3C <- unique(country_sample$iso3c)
 message("--- Section 4: Preparing and Merging Data Sources ---")
 
 # 4.1. Master Panel Framework ------------------------------------------------
-clean_panel <- country_sample %>%
+master_panel <- country_sample %>%
   select(group, iso3c) %>%
   crossing(year = START_YEAR:END_YEAR) %>%
   mutate(post_treat = as.integer(year >= TREAT_YEAR)) %>%
   arrange(group, iso3c, year)
 
 # 4.2. SIPRI (Outcome Variable) ----------------------------------------------
-
-# Military spending as a share of GDP
-sipri_gdp_clean <- read_excel(SIPRI_MILEX, sheet = "Share of GDP", skip = 5) %>%
+sipri_clean <- read_excel(SIPRI_MILEX, sheet = "Share of GDP", skip = 5) %>%
   clean_names() %>%
   pivot_longer(
     cols = starts_with("x"),
@@ -152,26 +150,7 @@ sipri_gdp_clean <- read_excel(SIPRI_MILEX, sheet = "Share of GDP", skip = 5) %>%
   filter(iso3c %in% SAMPLE_ISO3C, between(year, START_YEAR, END_YEAR)) %>%
   select(iso3c, year, milex_gdp)
 
-clean_panel <- merge_and_validate(clean_panel, sipri_gdp_clean, c("iso3c", "year"), "SIPRI")
-
-# Military spending in constant US$
-sipri_usd_clean <- read_excel(SIPRI_MILEX, sheet = "Constant (2023) US$", skip = 5) %>%
-  clean_names() %>%
-  pivot_longer(
-    cols = starts_with("x"),
-    names_to = "year",
-    values_to = "milex_usd",
-    names_prefix = "x",
-    names_transform = as.integer
-  ) %>%
-  mutate(
-    iso3c = countrycode(country, origin = "country.name", destination = "iso3c"),
-    milex_usd = as.numeric(milex_usd)
-  ) %>%
-  filter(iso3c %in% SAMPLE_ISO3C, between(year, START_YEAR, END_YEAR)) %>%
-  select(iso3c, year, milex_usd)
-
-clean_panel <- merge_and_validate(clean_panel, sipri_usd_clean, c("iso3c", "year"), "SIPRI")
+master_panel <- merge_and_validate(master_panel, sipri_clean, c("iso3c", "year"), "SIPRI")
 
 # 4.3. WDI (Covariates) ------------------------------------------------------
 wdi_clean <- WDI(
@@ -184,7 +163,7 @@ wdi_clean <- WDI(
   as_tibble() %>%
   select(iso3c, year, all_of(names(WDI_IND)))
 
-clean_panel <- merge_and_validate(clean_panel, wdi_clean, c("iso3c", "year"), "WDI")
+master_panel <- merge_and_validate(master_panel, wdi_clean, c("iso3c", "year"), "WDI")
 
 # 4.4. V-Dem (Covariate) -----------------------------------------------------
 vdem_clean <- vdemdata::vdem %>%
@@ -194,7 +173,7 @@ vdem_clean <- vdemdata::vdem %>%
   filter(iso3c %in% SAMPLE_ISO3C) %>%
   select(iso3c, year, lib_dem = v2x_libdem)
 
-clean_panel <- merge_and_validate(clean_panel, vdem_clean, c("iso3c", "year"), "V-Dem")
+master_panel <- merge_and_validate(master_panel, vdem_clean, c("iso3c", "year"), "V-Dem")
 
 
 # 5. POLISH, INSPECT & SAVE DATA =============================================
@@ -204,29 +183,26 @@ new_labels <- list(
   iso3c      = "Country Code",
   post_treat = "Dummy",
   milex_gdp  = "% of GDP",
-  milex_usd  = "Constant 2023 US$",
   pop        = "Population",
   gdp_cap    = "PPP, constant 2017 intl. $",
   trade_gdp  = "% of GDP",
   lib_dem    = "Index (0-1)"
 )
 
-clean_panel <- clean_panel %>%
+master_panel <- master_panel %>%
   set_variable_labels(.labels = new_labels)
 
 message("\nFinal dataset structure:")
-glimpse(clean_panel)
+glimpse(master_panel)
 
 message("\nSummary of missingness across all variables:")
-clean_panel %>%
-  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+master_panel %>%
+  summarise(across(everything(), ~sum(is.na(.)))) %>%
   pivot_longer(everything(), names_to = "variable", values_to = "na_count") %>%
   filter(na_count > 0) %>%
   print()
 
-saveRDS(clean_panel, file = CLEAN_PANEL)
+saveRDS(master_panel, file = MASTER_PANEL)
 
-message(paste(
-  "\n--- Script 01_data_prep.R finished ---",
-  "\nMaster panel data frame saved to:", CLEAN_PANEL
-))
+message(paste("\n--- Script 01_data_prep.R finished ---",
+              "\nMaster panel data frame saved to:", MASTER_PANEL))

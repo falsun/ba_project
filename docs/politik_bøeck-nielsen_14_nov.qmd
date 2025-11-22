@@ -1,0 +1,66 @@
+---
+editor: visual
+author: ""
+date: ""
+toc: false
+format:
+  typst:
+    include-in-header:
+      text: |
+        #set page(
+          header: {
+            [BA-vejledning]
+            h(1fr)
+            [Frederik Bender Bøeck-Nielsen]
+            h(1fr)
+            [14/11/2025]
+          }
+        )
+#abstract: "bla bla bla"
+---
+
+# DiD alligevel?
+
+Det lykkedes mig at finde ud af hvordan jeg modificerede den indbyggede placebo-in-time test i synthdid pakken (som forresten ER udviklet af en af forfatterne bag SDiD artiklen). Resultaterne for 2020 og 2019 så fine ud, men modellen fandt en signifikant effekt i 2019 (ATT = 0,150, p = 0,008). Jeg diskuterede disse resultater med Gregory Eady, og vi snakkede om hvordan en udfordring med syntetisk kontrol er, at det kan føles lidt som en “black box”. Han anbefalede at jeg i stedet gik “back-to-basics” for at se om det måske alligevel var muligt at opnå parallelle trends via DiD. I samme omgang anbefalede han at jeg forsøgte mig med alternative mål for militærudgifter (fx log-transformation af militærudgifter i konstante 2023 US\$, militærudgifter som procentdel af regeringsbudget, eller militærudgifter per indbygger). Jeg har derfor brugt den sidste uges tid på DiD.
+
+## Definitioner
+
+-   milex_gdp = militærudgifter som procentdel af BNP
+-   milex_gov = militærudgifter som procentdel af regeringsbudget
+-   milex_usd = militærudgifter i konstante 2023 US\$
+-   milex_cap = militærudgifter per indbygger (militærudgifter i konstante 2023 US\$ divideret med population)
+
+# Dilemmaet
+
+For at gøre en lang historie kort, så overvejer jeg kraftigt at droppe trin 2 af min analyse helt. På trods af at det var hvad jeg oprindeligt gerne ville undersøge, så må jeg erkende at det kausale spørgsmål er begyndt at interessere mig mere og mere, og det er også her jeg klart har dedikeret det meste af min tid. Hvis jeg vælger at udføre begge trin af analysen, så er jeg lidt bange for at min opgave bliver for ufokuseret og prøver at gøre for meget på en gang, samt at trin 2 vil bære præg af at den ikke har fået lige så meget kærlighed som trin 1. Givet at jeg har lært så meget om DiD og syntetisk kontrol, så virker det også ærgerligt hvis jeg ikke bruger det i opgaven, og skal skære en masse fra for at få plads til trin 2.
+
+## Mulighed 1
+
+Jeg tænker derfor at fokusere på kvalitet fremfor kvantitet, ved at lave en meget dybdegående analyse af trin 1 (den kausale effekt af invasionen). Dette vil indebære at jeg anvender forskellige modeller (DiD, GSC, SDiD) til at besvare samme spørgsmål:
+
+"*Har Ruslands invasion af Ukraine i 2022, haft en kausal effekt på militærudgifter blandt Europæiske NATO-lande*?"
+
+På den måde kan jeg virkelig komme i dybden med spørgsmålet, ved at undersøge om resultaterne er robuste på tværs af forskellige modeller, samt udføre diverse robustheds- og sensitivitetstests for hver model. Ligeledes vil jeg kunne køre mine modeller på forskellige versioner af den afhængige variabel, for dermed at belyse hvordan resultaterne kan afhænge af hvordan man vælger at måle militærudgifter. Dette vil kunne føre til nogle interessante diskussioner om styrker og svagheder ved hhv. DiD og syntetisk kontrol, samt hvilken betydning forskellige definitioner af militærudgifter har for hvad vi observerer. Jeg vil dermed kunne undersøge underspørgsmål såsom:
+
+-   "*hvad er effekten når man måler militærudgifter som procentdel af BNP?*" (milex_gdp)
+-   "*har militærudgifter rent fået en større politisk prioritet?*" (milex_gov)
+-   "*bruger landene rent faktisk flere penge end de gjorde inden invasionen?*" (milex_usd))
+-   "*Hvad sker der når man kontrollerer for population, og hvad siger det om udviklingen?*" (milex_cap)
+
+Igen, uden at kede jer for meget med detaljerne, så er der forskellige fordele og ulemper ved præcis hvordan man vælger af definere militærudgifter. Milex_gdp er fx relativt volatilt ift. BNP-vækst. Tallet kan således sagtens ændre sig hvis BNP vokser/falder, uden at det betyder at der bliver brugt flere eller færre penge på forsvar. Dette er specielt relevant for min analyse-periode, som indeholder COVID-19. Pandemien havde en markant effekt på BNP-vækst globalt, hvilket til dels forklarer den spøjse udvikling i milex_gdp fra 2019-2021. Kort sagt vil et fald i BNP få milex_gdp til at vokse, og en stigning i BNP vil omvendt på det til at falde, givet at hvor mange penge et land rent faktisk bruger holdes konstant.
+
+## Mulighed 2
+
+En anden løsning er at integrere trin 1 og 2 ved at tilføje moderatorer til mine DiD-modeller (tre-vejs interaktionsled). På den måde vil jeg stadig kunne teste for variation i behandlingsgruppen (fx om effekten er stærkere for lande tæt på Rusland). Dette forekommer mig som den bedste måde at gennemføre begge trin på, fremfor at køre separate Panel Data OLS modeller. Gregory Eady foreslog denne tilgang, hvis jeg gerne vil undersøge variationen, fordi jeg på den måde kan gøre spørgsmålet om variation kausalt. Han sagde at min oprindelige to-trins plan ville betyde at trin 2 af analysen "bare" blev deskriptiv. Det kræver selvfølgelig at jeg rent faktisk har parallelle trends, men her vil det vel være en fordel hvis jeg undersøger flere forskellige variationer af den afhængige variabler, givet at der er parallelle trends i visse af dem, men ikke i andre.
+
+# Spørgsmål
+
+1.  Hvad synes du/i jeg bør gøre?
+    a.  Kan jeg skrive en fyldestgørende opgave der udelukkende beskæftiger sig med det kausale spørgsmål (mulighed 1), givet at jeg både undersøger forskellige definitioner af militærudgifter, estimerer forskellige modeller (DiD, Generalized Synthetic Control, Synthetic Difference-in-Differences), samt udføre grundige robustheds- og sensitivitetstests for hver model?
+    b.  Bør jeg overveje mulighed 2 hvor jeg forsøger at integrere spørgsmålet om variation i mine DiD-modeller via tre-vejs interaktionsled (moderatorer)? Dette var Gregory Eady's anbefaling.
+    c.  Skal jeg holde mig til den oprindelige plan (kausalt spørgsmål i trin 1, deskriptiv OLS-modeller der undersøger variation i trin 2)?
+2.  Skal vi vedhæfte vores R script (ligesom i Metode 2)?
+3.  Skal vi vedhæfte ALLE figurer vi har lavet i vores appendiks/bilag, eller er det op til os selv hvad vi inkluderer? Min tanke er kun at inkludere figurer som jeg rent faktisk referer til i opgaven.
+4.  Er der nogle regler/guidelines for referencer til "ikke-videnskabelige" tekster? I løbet af studiet har jeg flere gange refereret til rapporter og nyhedsartikler i mine opgaver. Jeg er med på at størstedelen af referencerne selvfølgelig skal være videnskabelige artikler, men min opgave kommer nok til at indeholde en del fakta, hvor videnskabelige artikler ikke nødvendigvis er de mest logiske kilder. At skrive “Rusland invaderede Ukraine i begyndelsen af 2022” behøver nok ikke en kilde (eller hvad?), men hvis nu jeg argumenterer for hvorfor Bulgariens historiske store køb af F-16 fly i 2019 er problematisk for analysen, så virker det måske fornuftigt nok med en kilde.
+
+Note: *beklager hvis det blev en rodet omgang, mine tanker er lidt her og der, og det svært at koge det hele ned til 3 sider! Jeg håber det jeg har skrevet giver nogenlunde mening for dig/jer..*
