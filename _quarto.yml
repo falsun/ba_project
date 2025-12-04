@@ -10,7 +10,7 @@ author:
     - name: Department of Political Science - University of Copenhagen
 date: last-modified
 date-format: D. MMMM, YYYY
-lang: en-GB
+lang: da
 
 # -- REFERENCES --
 bibliography: references.bib
@@ -27,6 +27,7 @@ toc-indent: 1.6em
 # -- SECTIONS --
 number-sections: true
 number-depth: 3
+
 
 # -- PAGE LAYOUT --
 papersize: a4
@@ -46,7 +47,8 @@ knitr:
   opts_chunk:
     dev: "svglite"
     fig-width: 15
-    fig-asp: 0.75
+    fig-asp: 0.77
+    tbl-cap-location: bottom
 
 # -- Typst Settings --
 format:
@@ -59,7 +61,7 @@ format:
       top: 3cm
       bottom: 3.5cm
       x: 3cm
-    fontsize: 12pt
+    fontsize: 11pt
     section-numbering: 1.1.1.
     include-in-header:
       - text: |

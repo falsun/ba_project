@@ -21,7 +21,7 @@ DIR_FIG        <- here::here("_output", "_figures")
 
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
-MASTER_PANEL_LOG <- file.path(DIR_DATA, "master_panel_log.rds")
+MASTER_PANEL <- file.path(DIR_DATA, "master_panel.rds")
 
 
 # 1. ENVIRONMENT SETUP =======================================================
@@ -37,13 +37,13 @@ source(file.path(DIR_SCRIPTS, "00_functions.R"))
 # 2. PREPARE DATA ============================================================
 message("--- Section 2: Loading and Preparing Data ---")
 
-master_panel_log <- readRDS(MASTER_PANEL_LOG)
+master_panel <- readRDS(MASTER_PANEL)
 
 
 # 3. RIDGELINE PLOT ==========================================================
 message("--- Section 3: Generating Ridgeline Plot ---")
 
-plot_data_ridgeline <- master_panel_log %>%
+plot_data_ridgeline <- master_panel %>%
   filter(group == "treatment") %>%
   mutate(year_f = factor(year, levels = rev(sort(unique(year)))))
 

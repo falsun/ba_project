@@ -1,0 +1,651 @@
+---
+editor: visual
+author: ""
+date: ""
+toc: false
+format:
+  typst:
+    include-in-header:
+      text: |
+        #set page(
+          header: {
+            [BA-vejledning]
+            h(1fr)
+            [Frederik Bender Bøeck-Nielsen]
+            h(1fr)
+            [28/11/2025]
+          }
+        )
+#abstract: "bla bla bla"
+---
+
+```{r}
+#| label: setup-data
+#| include: false
+
+# 1. Libraries
+# Combined: Basic data manipulation + Panel tools + Simulation (MASS)
+library(conflicted)
+library(chunkhooks)
+library(svglite)
+library(tidyverse)
+library(fixest)
+library(plm)
+library(broom)
+library(gt)
+library(gtsummary)
+library(glue)
+library(here)
+library(scales)
+library(MASS)
+library(modelsummary)
+library(ggrepel)
+
+hook_figure_unit('cm')
+
+options(OutDec = ",")
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("lag", "dplyr")
+
+# 2. Source Functions
+source(here::here("scripts", "00_functions.R"))
+
+# 3. Load Data
+# Panel Data (for Event Studies/Diagnostics)
+master_panel <- readRDS(here::here("data", "_processed", "master_panel.rds"))
+# Cross-Section Data (for OLS)
+ols_data <- readRDS(here::here("data", "_processed", "ols_data.rds"))
+
+# 4. Global Constants
+END_YEAR <- 2024
+
+# Create Analysis Dataframe (for Panel)
+analysis_df <- master_panel %>%
+  filter(group %in% c("control", "treatment")) %>%
+  filter(year <= END_YEAR) %>%
+  mutate(event_time = year - 2022)
+
+# Subsets for Panel Diagnostics
+pre_treat_df <- analysis_df %>% filter(post_treat == 0)
+control_ids <- analysis_df %>% filter(group == "control") %>% distinct(iso3c) %>% pull(iso3c)
+control_data <- analysis_df %>% filter(iso3c %in% control_ids)
+
+# Coef Labels
+COEF_LABELS <- c(
+  "event_time::-8:treat_dummy" = "2014", "event_time::-7:treat_dummy" = "2015",
+  "event_time::-6:treat_dummy" = "2016", "event_time::-5:treat_dummy" = "2017",
+  "event_time::-4:treat_dummy" = "2018", "event_time::-3:treat_dummy" = "2019",
+  "event_time::-2:treat_dummy" = "2020", "event_time::0:treat_dummy"  = "2022",
+  "event_time::1:treat_dummy"  = "2023", "event_time::2:treat_dummy"  = "2024"
+)
+
+```
+
+Hej alle. Følgende er en kort gennemgang af de vigtigste resultater fra min analyse. Jeg er endt med at droppe syntetisk kontrol og tre-vejsinteraktioner og holder mig i stedet til at besvare det kausale spørgsmål[^1] via event-study modeller (diff-in-diff). Derefter undersøger jeg variationen[^2] via tværsnits OLS. Fremover er milex_usd_log = forsvarsudgifter i konstante 2023 US\$ (log-transformeret) og milex_gdp = forsvarsudgifter % af BNP.
+
+[^1]: "*Havde invasionen en kausal effekt på forsvarsudgifter blandt Europæiske NATO-lande?*"
+
+[^2]: "*Hvilke underliggende mekanismer driver den heterogene respons, og har betydningen af disse mekanismer ændret sig efter invasionen?*"
+
+# Spørgsmål {#sec-spørgsmål}
+
+1.  Er der noget kritisk jeg mangler (forudsætningstests, robusthedstests, etc.)?
+2.  Tanker om mine resultater og feedback på tabeller og figurer? Er der noget der er uklart/grimt/forkert? Jeg synes det er udfordrende at vurdere hvornår man bør oversætte begreber til dansk og hvornår man kan undlade det; guidelines?
+3.  I mine OLS modeller operationaliserer jeg institutionelt pres som "afstand til 2% målet". Variablen knytter sig direkte til milex_gdp, og jeg har indtil nu derfor kun kørt OLS modellerne for milex_gdp. Er det ok, eller bør jeg også teste milex_usd_log for konsistens i min opgave (jeg tester både milex_gdp og milex_usd_log i mine event-study modeller)?
+4.  Tips til funktionel form i OLS? Ramsey RESET testen indikerer at noget er galt.
+
+# Kausal Effekt (event-study) {#sec-kausal-effekt}
+
+```{r}
+#| label: fig-es-gdp
+#| fig-cap: "Event Study (Model 2) - Forsvarsudgifter (% af BNP)"
+#| results: false
+#| fig-asp: 0.63
+
+# --- 1. Configuration for this specific plot ---
+var_name <- "milex_gdp"
+# Main Model: Group Trends, Double Reference (2021 and 2014)
+f_main <- milex_gdp ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year
+ref_points <- c(-1, -8) 
+set.seed(1234) # Important for reproducible CIs
+
+# --- 2. Estimate Model ---
+mod_es <- feols(f_main, data = analysis_df, cluster = ~iso3c)
+
+# --- 3. Wald Test (Pre-trend) ---
+all_coefs <- names(coef(mod_es))
+pre_terms <- all_coefs[grepl("event_time::", all_coefs) & grepl("-", all_coefs)]
+
+p_pre <- NA
+if(length(pre_terms) > 0) {
+  ft <- try(wald(mod_es, pre_terms, print = FALSE), silent=TRUE)
+  if(!inherits(ft, "try-error")) p_pre <- ft$p[1]
+}
+
+# --- 4. Prepare Data & Simulate Uniform CIs ---
+# Tidy results
+es_results <- tidy(mod_es, cluster = ~iso3c, conf.int = TRUE) %>%
+  left_join(enframe(COEF_LABELS, name = "term", value = "label"), by = "term") %>%
+  filter(!is.na(label)) %>%
+  mutate(
+    event_time_num = as.numeric(str_replace_all(term, "event_time::|:treat_dummy", "")),
+    label = factor(label, levels = unname(COEF_LABELS))
+  ) %>%
+  arrange(event_time_num)
+
+# Simulate for Uniform Bands (MASS::mvrnorm)
+vcov_mat <- vcov(mod_es, cluster = ~iso3c)
+es_terms <- es_results$term
+b_es <- coef(mod_es)[es_terms]
+se_es <- es_results$std.error
+v_es <- vcov_mat[es_terms, es_terms]
+
+sim_draws <- mvrnorm(n = 5000, mu = rep(0, length(b_es)), Sigma = v_es)
+sim_t_stats <- abs(sim_draws) / matrix(se_es, nrow = 5000, ncol = length(b_es), byrow = TRUE)
+crit_val_unif <- quantile(apply(sim_t_stats, 1, max), 0.95)
+
+# Add Uniform CI columns
+es_results <- es_results %>%
+  mutate(
+    uniform.low = estimate - crit_val_unif * std.error,
+    uniform.high = estimate + crit_val_unif * std.error
+  )
+
+# --- 5. Plotting Setup ---
+# X-axis logic
+plot_breaks_x <- sort(unique(c(es_results$event_time_num, ref_points)))
+label_map <- setNames(c(as.character(es_results$label), "2021", "2014"), c(es_results$event_time_num, -1, -8))
+plot_labels_x <- label_map[as.character(plot_breaks_x)]
+
+# Y-axis logic (Reference Mean)
+ref_mean_val <- mean(analysis_df[[var_name]][analysis_df$event_time == -1 & analysis_df$group == "treatment"], na.rm = TRUE)
+ref_mean_label <- paste0("0 (", round(ref_mean_val, 2), ")")
+
+# --- 6. Generate Plot ---
+ggplot(es_results, aes(x = event_time_num, y = estimate)) +
+  geom_vline(xintercept = -1, linetype = "dashed", color = "grey40") +
+  geom_hline(yintercept = 0, linetype = "solid", color = "grey40") +
+  # Uniform Ribbons
+  geom_ribbon(aes(ymin = uniform.low, ymax = uniform.high), alpha = 0.25, fill = "#ce6a85") +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.40, fill = "#985277") +
+  # Points and Errors
+  geom_errorbar(aes(ymin = uniform.low, ymax = uniform.high), width = 0, color = "#5c374c", alpha = 1) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1, color = "#5c374c") +
+  geom_point(color = "#5c374c") +
+  # Formatting
+  scale_x_continuous(breaks = plot_breaks_x, labels = plot_labels_x) +
+  scale_y_continuous(labels = function(b) { b[b == 0] <- ref_mean_label; return(b) }) +
+  labs(
+    x = NULL,
+    y = "ATT"
+  ) +
+  theme_bachelor_project()
+
+```
+
+@fig-es-gdp og @tbl-es-gdp er resultaterne af mine event-study modeller[^3]. Antagelsen om parallelle trends holder vand (konfidensintervallerne i præ-behandlingsperioden overlapper nul og præ-trend F-testen er ikke statistisk signifikant) og samlet peger resultaterne på at der var en effekt, og at den tiltog i årene efter invasionen. Modellen består diverse forudsætningstests (se @sec-appendiks), dog bemærkes det at Japan er statistisk signifikant i 2024 og at Irlands præ-trends er på grænsen (se @fig-placebo-gdp). Resultaterne er robuste overfor sensitivitetstests såsom Leave-One-Out, randomiseringstest (se @fig-perm-gdp) samt tests fra HonestDiD R pakken [@rambachan2023].
+
+[^3]: Jeg gennemgår kun resultaterne for milex_gdp, men jeg finder stortset de samme resultater for milex_usd_log.
+
+```{r}
+#| label: tbl-es-gdp
+#| tbl-cap: "Event Study (Model 2) - Forsvarsudgifter (% af BNP)"
+
+# Reuse the 'es_results' and 'p_pre' calculated in the plot chunk
+# to ensure exact consistency.
+
+es_results %>%
+  select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
+  gt() %>%
+  fmt_number(
+    columns = c(estimate, std.error, conf.low, conf.high),
+    dec_mark = ","
+  ) %>%
+  cols_label(
+    label = "År", estimate = "ATT", std.error = "std. fejl",
+    conf.low = "95% CI", p.value = "p-værdi"
+  ) %>%
+  cols_merge(columns = c(conf.low, conf.high), pattern = "[{1}; {2}]") %>%
+  theme_gt_bachelor_project() %>%
+  tab_source_note(
+    source_note = md(paste(
+      "Obs.:", nobs(mod_es),
+      "&nbsp;&nbsp;&nbsp;&nbsp; Præ-Trend F-Test (p-værdi):",
+      gtsummary::style_pvalue(p_pre, digits = 3)
+    ))
+  )
+
+```
+
+# Heterogenitet (tværsnits OLS)
+
+Jeg har kørt separate modeller for 2014-21 (@fig-ols-pre og @tbl-ols-pre) og 2021-25 (@fig-ols-post og @tbl-ols-post), for at teste forklaringskraften af trusselsopfattelse (realisme) og institutionelt pres (liberalisme), samt forstå om deres effekt har ændret betydning. Jeg har identificeret BNP per indbygger og offentlig gæld (% af BNP) som vigtige mekanismer og jeg kontrollerer derfor for disse[^4]. Afstand til Rusland er statistisk signifikant og altdominerende i begge perioder; koefficienten for afstand er højere efter invasionen, men dens Adjusted R^2^ er lavere. Selvom afstand altså har en større effekt på forsvarsudgifter efter invasionen, er dens generelle forklaringskraft faldet, hvilket indikerer en større heterogenitet i udviklingen efter invasionen. Modellerne består desuden diverse forudsætningstests (se @tbl-diag-pre og @tbl-diag-post)[^5] og VIF-værdier og Cook's D ser fine ud.
+
+[^4]: Grundet lavt n har jeg valgt ikke at tilføje yderligere kontrolvariabler. De alternative jeg overvejede viste sig også at have ubetydelig effekt.
+
+[^5]: På nær Ramsey-RESET (se @sec-spørgsmål).
+
+```{r}
+#| label: fig-ols-pre
+#| fig-cap: "Afstand til Rusland (Log) vs. Forsvarsudgifter (% af BNP) 2014-21"
+
+# Calculate simple stats for subtitle (Based on the Log model used in tables)
+mod_pre <- lm(mil_gdp_nato_pre_dif ~ dist_min_log, data = ols_data)
+r2_pre <- summary(mod_pre)$r.squared
+slope_pre <- coef(mod_pre)[["dist_min_log"]]
+p_pre <- broom::tidy(mod_pre)$p.value[2]
+
+ggplot(ols_data, aes(x = dist_min, y = mil_gdp_nato_pre_dif)) +
+  # Loess for reference (Blue)
+  geom_smooth(method = "loess", color = "#f48c06", se = FALSE, linetype = "dashed", linewidth = 0.8) +
+  
+  # Linear Fit (Red) - adjusted to y ~ log(x) to match the regression model
+  geom_smooth(method = "lm", formula = y ~ log(x), color = "#0077b6", fill = "#0077b6", alpha = 0.1, se = TRUE) +
+  
+  # Text Labels
+  geom_text_repel(
+    aes(label = iso3c),
+    family = "IBM Plex Serif",
+    size = 3.5,
+    box.padding = 0.3,
+    max.overlaps = 20
+  ) +
+  
+  # Formatting X-axis to show kilometers nicely
+  scale_x_continuous(labels = scales::comma_format(big.mark = ".", decimal.mark = ",")) +
+  
+  labs(
+    x = "Afstand til Rusland (km)",
+    y = "Ændring i forsvarsudgifter (% af BNP)"
+  ) +
+  theme_bachelor_project()
+
+```
+
+```{r}
+#| label: tbl-ols-pre
+#| tbl-cap: "Tværsnits OLS (2014-21) - Forsvarsudgifter (% af BNP)"
+
+# Define Models
+models_pre <- list(
+  "(1)" = lm(mil_gdp_nato_pre_dif ~ dist_min_log, data = ols_data),
+  "(2)" = lm(mil_gdp_nato_pre_dif ~ nato_gap_2014, data = ols_data),
+  "(3)" = lm(mil_gdp_nato_pre_dif ~ dist_min_log + nato_gap_2014, data = ols_data),
+  "(4)" = lm(mil_gdp_nato_pre_dif ~ dist_min_log + nato_gap_2014 + debt_gdp_2014, data = ols_data),
+  "(5)" = lm(mil_gdp_nato_pre_dif ~ dist_min_log + nato_gap_2014 + debt_gdp_2014 + gdp_cap_2014_log, data = ols_data)
+)
+
+# Generate Table
+modelsummary(
+  models_pre,
+  output = "gt",
+  stars = c('*' = .1, '**' = .05, '***' = .01),
+  coef_map = c(
+    "dist_min_log" = "Afstand til Rusland",
+    "nato_gap_2014" = "Afstand til NATO-mål",
+    "debt_gdp_2014" = "Offentlig gæld",
+    "gdp_cap_2014_log" = "BNP per indbygger",
+    "(Intercept)" = "Konstant"
+  ),
+  gof_map = c("nobs", "adj.r.squared")
+) %>%
+  theme_gt_bachelor_project()
+
+```
+
+```{r}
+#| label: fig-ols-post
+#| fig-cap: "Afstand til Rusland (Log) vs. Forsvarsudgifter (% af BNP) 2021-25"
+
+# Calculate simple stats for subtitle (Based on the Log model used in tables)
+mod_post <- lm(mil_gdp_nato_post_dif ~ dist_min_log, data = ols_data)
+r2_post <- summary(mod_post)$r.squared
+slope_post <- coef(mod_post)[["dist_min_log"]]
+p_post <- broom::tidy(mod_post)$p.value[2]
+
+ggplot(ols_data, aes(x = dist_min, y = mil_gdp_nato_post_dif)) +
+  # Loess for reference (Blue)
+  geom_smooth(method = "loess", color = "#f48c06", se = FALSE, linetype = "dashed", linewidth = 0.8) +
+  
+  # Linear Fit (Red) - adjusted to y ~ log(x) to match the regression model
+  geom_smooth(method = "lm", formula = y ~ log(x), color = "#0077b6", fill = "#0077b6", alpha = 0.1, se = TRUE) +
+  
+  # Text Labels
+  geom_text_repel(
+    aes(label = iso3c),
+    size = 3.5,
+    family = "IBM Plex Serif",
+    box.padding = 0.3,
+    max.overlaps = 20
+  ) +
+  
+  # Formatting X-axis to show kilometers nicely
+  scale_x_continuous(labels = scales::comma_format(big.mark = ".", decimal.mark = ",")) +
+  
+  labs(
+    x = "Afstand til Rusland (km)",
+    y = "Ændring i forsvarsudgifter (% af BNP)"
+  ) +
+  theme_bachelor_project()
+
+```
+
+```{r}
+#| label: tbl-ols-post
+#| tbl-cap: "Tværsnits OLS (2021-25) - Forsvarsudgifter (% af BNP)"
+
+# Define Models
+models_post <- list(
+  "(1)" = lm(mil_gdp_nato_post_dif ~ dist_min_log, data = ols_data),
+  "(2)" = lm(mil_gdp_nato_post_dif ~ nato_gap_2021, data = ols_data),
+  "(3)" = lm(mil_gdp_nato_post_dif ~ dist_min_log + nato_gap_2021, data = ols_data),
+  "(4)" = lm(mil_gdp_nato_post_dif ~ dist_min_log + nato_gap_2021 + debt_gdp_2021, data = ols_data),
+  "(5)" = lm(mil_gdp_nato_post_dif ~ dist_min_log + nato_gap_2021 + debt_gdp_2021 + gdp_cap_2021_log, data = ols_data)
+)
+
+# Generate Table
+modelsummary(
+  models_post,
+  output = "gt",
+  stars = c('*' = .1, '**' = .05, '***' = .01),
+  coef_map = c(
+    "dist_min_log" = "Afstand til Rusland",
+    "nato_gap_2021" = "Afstand til NATO-mål",
+    "debt_gdp_2021" = "Offentlig gæld",
+    "gdp_cap_2021_log" = "BNP per indbygger",
+    "(Intercept)" = "Konstant"
+  ),
+  gof_map = c("nobs", "adj.r.squared")
+) %>%
+  theme_gt_bachelor_project()
+
+```
+
+# Appendiks {#sec-appendiks}
+
+```{r}
+#| label: fig-placebo-gdp
+#| fig-cap: "Placebo-in-Space Test - Forsvarsudgifter (% af BNP)"
+
+# Define variable for this chunk
+var_target <- "milex_gdp"
+
+# Generate data for all control countries
+plot_data_gdp <- map_dfr(control_ids, function(placebo_country) {
+  
+  # 1. Assign Placebo Treatment
+  data_loop <- control_data %>%
+    mutate(treat_dummy_placebo = ifelse(iso3c == placebo_country, 1, 0))
+
+  # 2. Run Model (Standard TWFE + IID Errors)
+  f_placebo <- as.formula(glue("{var_target} ~ i(event_time, treat_dummy_placebo, ref = -1) | iso3c + year"))
+  mod_placebo <- feols(f_placebo, data = data_loop, vcov = "iid")
+
+  # 3. Pre-Trend F-Test
+  coef_names <- names(coef(mod_placebo))
+  pre_terms <- coef_names[grepl("event_time::", coef_names) & grepl("-", coef_names)]
+  
+  p_str <- "NA"
+  if (length(pre_terms) > 0) {
+    ft <- try(wald(mod_placebo, pre_terms, print = FALSE), silent = TRUE)
+    if (!inherits(ft, "try-error")) {
+      p_str <- gtsummary::style_pvalue(ft$p[1], digits = 3)
+    }
+  }
+
+  # 4. Extract Estimates
+  tidy(mod_placebo, conf.int = TRUE) %>%
+    filter(grepl("event_time::", term)) %>%
+    mutate(
+      country = placebo_country,
+      event_time_num = as.numeric(str_extract(term, "-?\\d+")),
+      p_label_text = glue("Præ-Trend p: {p_str}")
+    )
+})
+
+# Plot
+ggplot(plot_data_gdp, aes(x = event_time_num, y = estimate)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1, color = "#5c374c") +
+  geom_point(color = "#5c374c") +
+  geom_text(
+    data = distinct(plot_data_gdp, country, p_label_text),
+    aes(x = -3, y = -Inf, label = p_label_text),
+    vjust = 1, size = 3, color = "black", inherit.aes = FALSE
+  ) +
+  facet_wrap(~country, scales = "free_y") +
+  coord_cartesian(clip = "off") +
+  labs(x = NULL, y = NULL) +
+  theme_bachelor_project() +
+  theme(
+    strip.text = element_text(size = 9),
+    panel.grid.major.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    plot.margin = margin(b = 10)
+  )
+```
+
+```{r}
+#| label: tbl-csd
+#| tbl-cap: "Tværsnitsafhængighedstest (Pesaran CD)"
+
+vars_to_test <- c("milex_gdp", "milex_usd_log")
+
+csd_results <- map_dfr(vars_to_test, function(var_name) {
+  
+  # Prepare Data
+  data_clean <- pre_treat_df %>%
+    select(iso3c, year, treat_dummy, all_of(var_name)) %>%
+    na.omit()
+
+  # Base Model Test
+  mod_base <- try(feols(as.formula(glue("{var_name} ~ 1 | iso3c + year")), data = data_clean), silent = TRUE)
+  p_base <- NA
+  if (!inherits(mod_base, "try-error")) {
+    pd_base <- pdata.frame(data_clean %>% mutate(r = residuals(mod_base)), index = c("iso3c", "year"))
+    cd_base <- try(pcdtest(r ~ 1, data = pd_base), silent = TRUE)
+    if (!inherits(cd_base, "try-error")) p_base <- cd_base$p.value
+  }
+
+  # Main Model Test
+  mod_main <- try(feols(as.formula(glue("{var_name} ~ i(treat_dummy, year, ref=0) | iso3c + year")), data = data_clean), silent = TRUE)
+  p_main <- NA
+  if (!inherits(mod_main, "try-error")) {
+    pd_main <- pdata.frame(data_clean %>% mutate(r = residuals(mod_main)), index = c("iso3c", "year"))
+    cd_main <- try(pcdtest(r ~ 1, data = pd_main), silent = TRUE)
+    if (!inherits(cd_main, "try-error")) p_main <- cd_main$p.value
+  }
+
+  tibble(variable = var_name, p_val_base = as.numeric(p_base), p_val_main = as.numeric(p_main))
+})
+
+# Generate Table
+gt(csd_results) %>%
+  cols_label(
+    variable = "Variabel",
+    p_val_base = "Model 1 (p-værdi)",
+    p_val_main = "Model 2 (p-værdi)"
+  ) %>%
+  theme_gt_bachelor_project() %>%
+  fmt(columns = starts_with("p_val"), fns = function(x) gtsummary::style_pvalue(x, digits = 3)) %>%
+  cols_align(align = "right", columns = starts_with("p_val"))
+```
+
+```{r}
+#| label: tbl-llc
+#| tbl-cap: "Panel Unit Root Test (Levin-Lin-Chu)"
+
+vars_to_test <- c("milex_gdp", "milex_usd_log")
+
+pur_results <- map_dfr(vars_to_test, function(var_name) {
+  
+  data_clean <- pre_treat_df %>% select(iso3c, year, all_of(var_name)) %>% na.omit()
+  p_data <- pdata.frame(data_clean, index = c("iso3c", "year"))
+  p_data_balanced <- try(plm::make.pbalanced(p_data, balance.type = "shared.individuals"), silent = TRUE)
+
+  if (inherits(p_data_balanced, "try-error") || nrow(p_data_balanced) == 0) return(NULL)
+
+  map_dfr(c("intercept", "trend"), function(spec_type) {
+    llc_test <- try(purtest(object = p_data_balanced[[var_name]], test = "levinlin", exo = spec_type, lags = 0), silent = TRUE)
+    if (inherits(llc_test, "try-error")) return(tibble(variable = var_name, spec = spec_type, p.value = NA))
+    
+    tibble(variable = var_name, spec = spec_type, p.value = as.numeric(llc_test$statistic$p.value))
+  })
+})
+
+# Generate Table
+pur_results %>%
+  pivot_wider(names_from = spec, values_from = p.value, names_prefix = "p_") %>%
+  gt() %>%
+  cols_label(variable = "Variabel", p_intercept = "Konstant (p-værdi)", p_trend = "Tids Tendens (p-værdi)") %>%
+  theme_gt_bachelor_project() %>%
+  fmt(columns = starts_with("p_"), fns = function(x) gtsummary::style_pvalue(x, digits = 3)) %>%
+  cols_align(align = "right", columns = starts_with("p_"))
+```
+
+```{r}
+#| label: fig-perm-gdp
+#| fig-cap: "Randomiseringstest (Model 2) - Forsvarsudgifter (% af BNP)"
+#| fig-asp: 0.63
+#| cache: true
+#| cache-comments: true
+
+# 1. Parameters
+var_target <- "milex_gdp"
+B <- 5000     # Number of permutations
+set.seed(1234)
+
+# 2. Calculate ACTUAL Statistic (Average Post-Treatment ATT)
+# Formula: Main Model (Group Trends)
+fml_actual <- as.formula(glue("{var_target} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year"))
+mod_actual <- feols(fml_actual, data = analysis_df, cluster = ~iso3c)
+
+# Extract coefs for 2022, 2023, 2024 (event_time 0, 1, 2)
+coef_names <- names(coef(mod_actual))
+post_terms <- coef_names[grepl("event_time::", coef_names) & !grepl("-", coef_names)]
+stat_actual <- mean(coef(mod_actual)[post_terms])
+
+# 3. Run Permutation Loop
+unit_list <- analysis_df %>% distinct(iso3c, treat_dummy)
+placebo_stats <- numeric(B)
+
+# Note: Progress bar removed for cleaner PDF log
+for (i in 1:B) {
+  
+  # A. Shuffle Treatment Labels
+  unit_list_shuffled <- unit_list %>%
+    mutate(treat_dummy_placebo = sample(treat_dummy)) %>%
+    select(iso3c, treat_dummy_placebo)
+  
+  # B. Join shuffled labels
+  data_placebo <- analysis_df %>%
+    select(-treat_dummy) %>%
+    left_join(unit_list_shuffled, by = "iso3c")
+  
+  # C. Run Placebo Model
+  # Note: Uses explicit interaction for group trends to match original script logic
+  fml_placebo <- as.formula(glue("{var_target} ~ i(event_time, treat_dummy_placebo, ref = c(-1, -8)) | iso3c + year + treat_dummy_placebo[year]"))
+  
+  mod_placebo <- try(feols(fml_placebo, data = data_placebo, cluster = ~iso3c), silent = TRUE)
+  
+  if (!inherits(mod_placebo, "try-error")) {
+    p_coefs <- names(coef(mod_placebo))
+    p_terms <- p_coefs[grepl("event_time::", p_coefs) & !grepl("-", p_coefs)]
+    
+    if(length(p_terms) > 0) {
+      placebo_stats[i] <- mean(coef(mod_placebo)[p_terms])
+    } else {
+      placebo_stats[i] <- NA
+    }
+  } else {
+    placebo_stats[i] <- NA
+  }
+}
+
+# 4. Calculate P-Value & Plot
+placebo_stats_clean <- na.omit(placebo_stats)
+n_clean <- length(placebo_stats_clean)
+
+# One-sided p-value: (Count >= Actual + 1) / (Total + 1)
+p_val_frt <- (sum(placebo_stats_clean >= stat_actual) + 1) / (n_clean + 1)
+
+plot_df <- data.frame(stats = placebo_stats_clean)
+p_label <- paste("p =", gtsummary::style_pvalue(p_val_frt, digits = 3))
+
+ggplot(plot_df, aes(x = stats)) +
+  geom_histogram(bins = 50, fill = "grey80", color = "white") +
+  geom_vline(aes(xintercept = stat_actual), color = "grey40", linetype = "dashed") +
+  annotate("text", x = stat_actual, y = Inf, label = p_label,
+           vjust = 2, hjust = 1.1, color = "black") +
+  labs(
+    x = "Gennemsnitlig Post-behandlings ATT",
+    y = "Frekvens",
+    caption = "Distribution under 5.000 tilfældige allokeringer. Sort linje indikerer reel gennemsnitlig post-behandlings ATT"
+  ) +
+  theme_bachelor_project() +
+  theme(panel.grid.major.y = element_blank())
+```
+
+```{r}
+#| label: tbl-diag-pre
+#| tbl-cap: "Forudsætningstests OLS 2014-21 (Model 5)"
+
+# 1. Hent den fulde model (Model 5)
+mod_target <- models_pre[["(5)"]]
+
+# 2. Kør tests
+sw <- shapiro.test(residuals(mod_target))
+bp <- lmtest::bptest(mod_target)
+reset <- lmtest::resettest(mod_target, power = 2:3, type = "fitted")
+
+# 3. Saml resultater
+tibble(
+  Test = c("Shapiro-Wilk (Normalfordeling)", 
+           "Breusch-Pagan (Heteroskedasticitet)", 
+           "Ramsey RESET (Lineær form)"),
+  p_val = c(sw$p.value, bp$p.value, reset$p.value)
+) %>%
+  gt() %>%
+  cols_label(p_val = "p-værdi") %>%
+  fmt(
+    columns = p_val, 
+    fns = function(x) gtsummary::style_pvalue(x, digits = 3)
+  ) %>%
+  theme_gt_bachelor_project()
+
+```
+
+```{r}
+#| label: tbl-diag-post
+#| tbl-cap: "Forudsætningstests OLS 2021-25 (Model 5)"
+
+# 1. Hent den fulde model (Model 5)
+mod_target <- models_post[["(5)"]]
+
+# 2. Kør tests
+sw <- shapiro.test(residuals(mod_target))
+bp <- lmtest::bptest(mod_target)
+reset <- lmtest::resettest(mod_target, power = 2:3, type = "fitted")
+
+# 3. Saml resultater
+tibble(
+  Test = c("Shapiro-Wilk (Normalfordeling)", 
+           "Breusch-Pagan (Heteroskedasticitet)", 
+           "Ramsey RESET (Lineær form)"),
+  p_val = c(sw$p.value, bp$p.value, reset$p.value)
+) %>%
+  gt() %>%
+  cols_label(p_val = "p-værdi") %>%
+  fmt(
+    columns = p_val, 
+    fns = function(x) gtsummary::style_pvalue(x, digits = 3)
+  ) %>%
+  theme_gt_bachelor_project()
+```
+
+# Referencer

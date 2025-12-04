@@ -27,14 +27,8 @@ VARS_FOR_PLOTTING <- c(
   "milex_usd_log"    = "Log(Milex, Constant 2023 US$)",
   "milex_gdp"        = "Milex (% of GDP)",
   "milex_gdp_log"    = "Log(Milex % of GDP)",
-  "milex_gov"        = "Milex (% of Govt. Spending)",
-  "milex_gov_log"    = "Log(Milex % of Govt. Spending)",
   "milex_cap"        = "Milex per Capita",
-  "milex_cap_log"    = "Log(Milex per Capita)",
-  "pop"              = "Population",
-  "gdp_cap"          = "GDP per Capita (PPP, constant 2017 intl. $)",
-  "trade_gdp"        = "Trade Openness (% of GDP)",
-  "lib_dem"          = "V-Dem Liberal Democracy Score (0-1 Index)"
+  "milex_cap_log"    = "Log(Milex per Capita)"
 )
 
 

@@ -15,8 +15,12 @@
 # 0. CONFIGURATION & PARAMETERS ==============================================
 message("--- Section 0: Loading Configuration ---")
 
+TREAT_YEAR <- 2022
+
+options(OutDec = ",")
+
 # --- Set Variables to Test ---
-VARS_TO_TEST <- c("milex_cap")
+VARS_TO_TEST <- c("milex_usd_log", "milex_gdp")
 
 # --- Parameters ---
 B <- 5000 # Number of permutations
@@ -25,11 +29,11 @@ SEED <- 1234  # For reproducibility
 # --- Define Directories ---
 DIR_DATA    <- here::here("data", "_processed")
 DIR_SCRIPTS <- here::here("scripts")
-DIR_FIG     <- here::here("_output", "_figures", "_robustness")
+DIR_FIG     <- here::here("_output", "_figures", "_es_robustness")
 
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
-MASTER_PANEL <- file.path(DIR_DATA, "master_panel.rds")
+ES_PANEL <- file.path(DIR_DATA, "es_panel.rds")
 
 
 # 1. ENVIRONMENT SETUP =======================================================
@@ -58,15 +62,10 @@ options(scipen = 999)
 # 2. PREPARE DATA ============================================================
 message("--- Section 2: Loading and Preparing Data ---")
 
-master_panel <- readRDS(MASTER_PANEL)
-
-# Create standard analysis dataframe
-analysis_df <- master_panel %>%
-  filter(group %in% c("control", "treatment")) %>%
-  mutate(event_time = year - 2022)
+es_panel <- readRDS(ES_PANEL)
 
 # Get the unique list of units and their TRUE treatment status
-unit_list <- analysis_df %>%
+unit_list <- es_panel %>%
   distinct(iso3c, treat_dummy)
 
 
@@ -82,10 +81,10 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
   # --------------------------------------------------------------------------
 
   fml_actual <- as.formula(glue(
-    "{VAR_TO_TEST} ~ i(event_time, treat_dummy, ref = c(-1, -8)) | iso3c + year + treat_dummy[year]"
+    "{VAR_TO_TEST} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year"
   ))
 
-  mod_actual <- feols(fml_actual, data = analysis_df, cluster = ~iso3c)
+  mod_actual <- feols(fml_actual, data = es_panel, cluster = ~iso3c)
 
   # Identify Post-Treatment Terms (2022, 2023, 2024)
   coef_names <- names(coef(mod_actual))
@@ -117,7 +116,7 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
       select(iso3c, treat_dummy_placebo)
 
     # B. Join shuffled labels
-    data_placebo <- analysis_df %>%
+    data_placebo <- es_panel %>%
       select(-treat_dummy) %>%
       left_join(unit_list_shuffled, by = "iso3c")
 
@@ -169,16 +168,14 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
     annotate("text", x = stat_actual, y = Inf,
              label = p_label,
              vjust = 2, hjust = 1.1,
-             color = "black", family = "IBM Plex Sans") +
+             color = "black", family = "IBM Plex Serif") +
     labs(
-      title = glue("Permutation Test (Main Model): {VAR_TO_TEST}"),
-      subtitle = glue("Distribution under {B} random assignments"),
-      x = "Average Post-Treatment ATT",
-      y = "Frequency",
-      caption = "Black line indicates actual average post-treatment ATT"
+      subtitle = glue(""),
+      x = "Gennemsnitlig Post-Treatment ATT",
+      y = "Frekvens",
+      caption = "Distribuering under 5.000 tilfældige allokeringer.\nStiplet linje indikerer reel gennemsnitlig post-treatment ATT."
     ) +
-    theme_bachelor_project() +
-    theme(panel.grid.major.y = element_blank())
+    theme_bachelor_project()
 
   ggsave(file.path(DIR_FIG, glue("frt_plot_{VAR_TO_TEST}.png")), p_frt, width = 8, height = 5, bg = "white")
 }

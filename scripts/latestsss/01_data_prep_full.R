@@ -22,32 +22,45 @@ if (!dir.exists(DIR_DATA_PROC)) dir.create(DIR_DATA_PROC, recursive = TRUE)
 COUNTRY_SAMPLE <- file.path(DIR_DATA_RAW, "country_sample.xlsx")
 SIPRI_MILEX <- file.path(DIR_DATA_RAW, "sipri_milex_2025p.xlsx")
 CEPII_DIST <- file.path(DIR_DATA_RAW, "dist_cepii.dta")
-IMF_DATA <- file.path(DIR_DATA_RAW, "imf_weo_2025-10-14p.csv")
+IMF_DEBT <- file.path(DIR_DATA_RAW, "imf_weo_2025-10-14p.csv")
 MASTER_PANEL <- file.path(DIR_DATA_PROC, "master_panel.rds")
-ES_PANEL <- file.path(DIR_DATA_PROC, "es_panel.rds")
 
 # Timing
-START_YEAR <- 2014 # Annexation of Crimea & NATO Wales Summit
-END_YEAR <- 2025   # Current year
-TREAT_YEAR <- 2022 # Invasion of Ukraine
+START_YEAR <- 2014 # Analysis start year (Annexation of Crimea)
+END_YEAR <- 2025
+TREAT_YEAR <- 2022
 
 # Group Definitions
+TREATMENT_MAN <- c()
 TREATMENT_SEC_MAN <- c("GRC", "BGR")
+CONTROL_MAN <- c()
 CONTROL_SEC_MAN <- c("CHL", "ISR", "MEX", "TUR", "USA")
 
+# WDI Indicators
+WDI_IND <- c(
+  pop       = "SP.POP.TOTL", # Population, total
+  gdp_cap   = "NY.GDP.PCAP.PP.KD", # GDP per capita, PPP (constant 2021 intl $)
+  trade_gdp = "NE.TRD.GNFS.ZS" # Trade as % of GDP
+)
 
 # 1. ENVIRONMENT SETUP =======================================================
 message("--- Section 1: Setting Up Environment ---")
 
-library(conflicted) # håndtere pakke konflikter
-library(tidyverse) # data manipulation
-library(here) # robuste filstier
-library(readxl) # læs excel filer
-library(janitor) # rens dataframes
-library(countrycode) # konverter landekoder
-library(labelled) # labels
-library(haven) # .dta filer
-library(troopdata) # data for amerikanske soldater
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  here, # Robust file paths
+  tidyverse, # Data manipulation
+  readxl, # Read Excel files
+  janitor, # Cleaning data frames
+  countrycode, # Convert country codes
+  WDI, # World Bank data
+  vdemdata, # V-Dem data
+  conflicted, # Conflicts
+  labelled, # Labels
+  haven # dta files
+)
+
+library(troopdata)
 
 conflict_prefer("filter", "dplyr")
 conflict_prefer("lag", "dplyr")
@@ -67,10 +80,10 @@ merge_and_validate <- function(master_df, new_df, merge_by, source_name) {
     select(iso3c, year, all_of(new_cols))
 
   if (nrow(missing_data) > 0) {
-    warning(paste("ADVARSEL: Manglende værdier for ", source_name, "data:"))
+    warning(paste("WARNING: Missing values for ", source_name, "data:"))
     print(missing_data, n = 50)
   } else {
-    message(paste("SUCCES: Ingen manglende værdier for ", source_name, "data."))
+    message(paste("SUCCESS: No missing values for ", source_name, "data."))
   }
 
   return(merged_df)
@@ -85,16 +98,18 @@ country_sample <- read_excel(COUNTRY_SAMPLE, sheet = "sample") %>%
   mutate(
     across(ends_with("_year"), as.numeric),
     group = case_when(
-      region == "Europe" & nato_member_year < START_YEAR ~ "Behandlet",
-      region == "Europe" & nato_member_year >= START_YEAR ~ "Behandlet_sek",
-      oecd_member_year <= START_YEAR ~ "Kontrol",
+      region == "Europe" & nato_member_year < START_YEAR ~ "treatment",
+      region == "Europe" & nato_member_year >= START_YEAR ~ "treatment_sec",
+      oecd_member_year <= START_YEAR ~ "control",
       TRUE ~ NA_character_
     )
   ) %>%
   mutate(
     group = case_when(
-      iso3c %in% TREATMENT_SEC_MAN ~ "Behandlet_sek",
-      iso3c %in% CONTROL_SEC_MAN ~ "Kontrol_sek",
+      iso3c %in% TREATMENT_MAN ~ "treatment",
+      iso3c %in% TREATMENT_SEC_MAN ~ "treatment_sec",
+      iso3c %in% CONTROL_MAN ~ "control",
+      iso3c %in% CONTROL_SEC_MAN ~ "control_sec",
       TRUE ~ group
     )
   ) %>%
@@ -116,11 +131,11 @@ message("--- Section 4: Preparing and Merging Data Sources ---")
 
 ## 4.1. Master Panel Framework ----
 clean_panel <- country_sample %>%
-  select(group, iso3c, country_dan, post_com) %>%
+  select(group, iso3c, subregion, border_mar_rus, post_com) %>%
   crossing(year = START_YEAR:END_YEAR) %>%
   mutate(
-    treat_dummy = ifelse(group == "Behandlet", 1, 0),
-    event_time = year - TREAT_YEAR
+    treat_dummy = ifelse(group == "treatment", 1, 0),
+    post_treat = as.integer(year >= TREAT_YEAR)
   ) %>%
   arrange(group, iso3c, year)
 
@@ -145,8 +160,20 @@ sipri_gdp <- read_excel(SIPRI_MILEX, sheet = "Share of GDP", skip = 5) %>%
 
 clean_panel <- merge_and_validate(clean_panel, sipri_gdp, c("iso3c", "year"), "SIPRI (GDP)")
 
-## 4.3. CEPII (Distance & Land Borders) ----
-cepii_clean <- read_dta(CEPII_DIST) %>%
+## 4.3. V-Dem (Liberal Democracy Index) ----
+vdem_clean <- vdemdata::vdem %>%
+  as_tibble() %>%
+  filter(between(year, START_YEAR, END_YEAR)) %>%
+  mutate(iso3c = countrycode(country_name, "country.name", "iso3c")) %>%
+  filter(iso3c %in% SAMPLE_ISO3C) %>%
+  select(iso3c, year, lib_dem = v2x_libdem)
+
+clean_panel <- merge_and_validate(clean_panel, vdem_clean, c("iso3c", "year"), "V-Dem")
+
+## 4.4. CEPII (Distance & Land Borders) ----
+cepii_raw <- read_dta(CEPII_DIST)
+
+dist_clean <- cepii_raw %>%
   as_tibble() %>%
   # Fix Romania ISO
   mutate(
@@ -154,7 +181,7 @@ cepii_clean <- read_dta(CEPII_DIST) %>%
     iso_d = if_else(iso_d == "ROM", "ROU", iso_d)
   ) %>%
   # Filter for Conflict Zone Origins
-  filter(iso_o %in% c("RUS", "BLR")) %>%
+  filter(iso_o %in% c("RUS", "BLR", "UKR")) %>%
   # Reshape Long to Wide
   pivot_wider(
     id_cols = iso_d,
@@ -164,56 +191,91 @@ cepii_clean <- read_dta(CEPII_DIST) %>%
   # Rename for clarity
   rename(
     iso3c = iso_d,
-    border_rus = contig_RUS,
     dist_rus = distcap_RUS,
     dist_blr = distcap_BLR,
+    dist_ukr = distcap_UKR,
+    border_land_rus = contig_RUS,
+    border_land_blr = contig_BLR,
+    border_land_ukr = contig_UKR
   ) %>%
   # Filter for our sample
   filter(iso3c %in% SAMPLE_ISO3C)
 
-clean_panel <- merge_and_validate(clean_panel, cepii_clean, "iso3c", "CEPII Distance")
+clean_panel <- merge_and_validate(clean_panel, dist_clean, "iso3c", "CEPII Distance")
 
-## 4.4. IMF WEO (Debt, Real GDP, Wealth, Size) ----
-imf_data <- read_csv(IMF_DATA, show_col_types = FALSE, na = c("", "NA", "n/a", "--")) %>%
+## 4.6. IMF WEO (Government Debt) ----
+imf_debt <- read_csv(IMF_DEBT, show_col_types = FALSE, na = c("", "NA", "n/a", "--")) %>%
   clean_names() %>%
-  # 1. Filter for relevant indicators
-  filter(indicator_id %in% c("NGDPD", "NGDP_R", "NGDPRPPPPC", "GGXWDG_NGDP")) %>%
+  filter(indicator_id == "GGXWDG_NGDP") %>%
   mutate(
     iso3c = country_id,
     year = as.numeric(time_period),
-    obs_value = as.numeric(obs_value),
-    # 2. THE FIX: Normalize NGDPD to "Billions"
-    obs_value = case_when(
-      # CASE A: Albania (NGDPD + Missing Scale/Large Number)
-      # If it's Total GDP AND the scale is empty, divide by 1 billion.
-      indicator_id == "NGDPD" & (is.na(scale) | scale == "") ~ obs_value / 1e9,
-      # CASE B: Germany (NGDPD + "Billions" Scale)
-      # If it explicitly says "Billions", it is already in the format we want. Keep as is.
-      indicator_id == "NGDPD" & str_detect(scale, "Billions") ~ obs_value,
-      # CASE C: Everything else (Debt %, Per Capita, Local Currency GDP)
-      # Keep exactly as provided by IMF.
-      TRUE ~ obs_value
-    )
+    debt_gdp = as.numeric(obs_value)
   ) %>%
-  # 3. Filter Sample Scope
   filter(iso3c %in% SAMPLE_ISO3C, between(year, START_YEAR, END_YEAR)) %>%
-  # 4. Select and Pivot (Scale column is no longer needed)
-  select(iso3c, year, indicator_id, obs_value) %>%
-  pivot_wider(
-    names_from = indicator_id,
-    values_from = obs_value
+  select(iso3c, year, debt_gdp)
+
+clean_panel <- merge_and_validate(clean_panel, imf_debt, c("iso3c", "year"), "IMF Debt")
+
+## 4.6. WDI (Covariates) ----
+wdi_clean <- WDI(country = SAMPLE_ISO3C, indicator = WDI_IND, start = START_YEAR, end = END_YEAR, extra = FALSE) %>%
+  as_tibble() %>%
+  select(iso3c, year, all_of(names(WDI_IND)))
+
+clean_panel <- merge_and_validate(clean_panel, wdi_clean, c("iso3c", "year"), "WDI")
+
+
+# 6. LOAD AND CLEAN IEP GLOBAL PEACE INDEX DATA ------------------------------
+
+print("Loading and cleaning Global Peace Index data from multiple sheets...")
+
+# Define the path to the Excel file
+gpi_filepath <- here("data", "raw", "iep_gpi_2025p.xlsx")
+
+# Get all sheet names from the workbook
+all_sheets <- readxl::excel_sheets(gpi_filepath)
+
+# Filter for only the sheets that represent the years in our analysis period
+years_to_process <- as.character(START_YEAR:END_YEAR)
+relevant_sheets <- all_sheets[all_sheets %in% years_to_process]
+
+# Define a function to read and process a single year's sheet
+process_gpi_sheet <- function(sheet_name) {
+  read_excel(
+    gpi_filepath,
+    sheet = sheet_name,
+    skip = 5 # Skip the first 5 rows of messy headers as identified
   ) %>%
-  rename(
-    gdp       = NGDPD,      # Gross Domestic Product (GDP), Current prices, US dollar
-    gdp_local = NGDP_R,     # Gross Domestic Product (GDP), Constant prices, Domestic currency
-    gdp_cap   = NGDPRPPPPC, # Gross Domestic Product (GDP), Constant prices, Per capita, purchasing power parity (PPP) international dollar, ICP benchmark 2021
-    debt_gdp  = GGXWDG_NGDP # Gross debt, General government, Percent of GDP
-  )
+    as_tibble() %>%
+    clean_names() %>%
+    # Select the country identifier and the variable of interest
+    select(
+      iso3c = geocode,
+      safe_sec = safety_and_security
+    ) %>%
+    # Add a year column based on the sheet name and ensure data types are correct
+    mutate(
+      year = as.numeric(sheet_name),
+      safe_sec = as.numeric(safe_sec)
+    )
+}
 
-# Merge
-clean_panel <- merge_and_validate(clean_panel, imf_data, c("iso3c", "year"), "IMF WEO Data")
+# Use purrr::map_dfr to apply the function to each relevant sheet and
+# row-bind the results into a single, tidy data frame.
+gpi_clean <- map_dfr(relevant_sheets, process_gpi_sheet) %>%
+  # Filter for only the countries in our final sample
+  filter(iso3c %in% SAMPLE_ISO3C) %>%
+  # Remove any rows where the score might be missing
+  drop_na(safe_sec)
 
-## 4.6 LOAD AND CLEAN NATO DEFENCE EXPENDITURE DATA ----------------------------
+
+print("IEP Global Peace Index data cleaned and filtered.")
+glimpse(gpi_clean)
+
+clean_panel <- merge_and_validate(clean_panel, gpi_clean, c("iso3c", "year"), "GPI")
+
+
+# 4. LOAD AND CLEAN NATO DEFENCE EXPENDITURE DATA ----------------------------
 
 # The NATO Excel sheet is messy. We use the `range` argument to be precise
 # and specify `col_names = TRUE` to use the year headers.
@@ -257,7 +319,7 @@ print("NATO data cleaned and filtered (NA rows preserved).")
 glimpse(nato_clean)
 
 
-### 4.6.1. MANUALLY ADD MISSING 2025 ESTIMATE FOR GERMANY ----------------------
+# 4.1 MANUALLY ADD MISSING 2025 ESTIMATE FOR GERMANY ----------------------
 
 print("Manually adding sourced 2025 estimate for Germany...")
 
@@ -301,64 +363,99 @@ message("--- Section 5: Creating Variables and Transformations ---")
 master_panel <- clean_panel %>%
   arrange(iso3c, year) %>%
   mutate(
+    # Base Variables
+    milex_cap = milex_usd / pop,
+
     # Log Transformations
     milex_usd_log = log(milex_usd),
+    milex_gdp_log = log(milex_gdp),
+    milex_cap_log = log(milex_cap),
+
     # Minimum Distance to Conflict Zone
+    dist_conf = pmin(dist_rus, dist_blr, dist_ukr, na.rm = TRUE),
     dist_enemy = pmin(dist_rus, dist_blr, na.rm = TRUE),
+
+    # Combined Border Dummy
+    # Uses CEPII land borders + Manual maritime border (preserved from country_sample)
+    # Replace NAs with 0 to ensure boolean logic works
+    border_conf = if_else(
+      replace_na(border_land_rus, 0) == 1 |
+        replace_na(border_land_blr, 0) == 1 |
+        replace_na(border_land_ukr, 0) == 1 |
+        replace_na(border_mar_rus, 0) == 1,
+      1, 0
+    ),
+    border_conf_land = if_else(
+      replace_na(border_land_rus, 0) == 1 |
+        replace_na(border_land_blr, 0) == 1 |
+        replace_na(border_land_ukr, 0) == 1,
+      1, 0
+    ),
+    border_enemy = if_else(
+      replace_na(border_land_rus, 0) == 1 |
+        replace_na(border_land_blr, 0) == 1 |
+        replace_na(border_mar_rus, 0) == 1,
+      1, 0
+    ),
+    border_enemy_land = if_else(
+      replace_na(border_land_rus, 0) == 1 |
+        replace_na(border_land_blr, 0) == 1,
+      1, 0
+    ),
+    border_rus = if_else(
+      replace_na(border_land_rus, 0) == 1 |
+        replace_na(border_mar_rus, 0) == 1,
+      1, 0
+    ),
   ) %>%
   # --- REORDER COLUMNS ---
   select(
 
     # META
-    group, treat_dummy, post_com, iso3c, country_dan, year, event_time,
+    group, treat_dummy, subregion, post_com, iso3c, year, post_treat,
 
     # OUTCOMES
     milex_usd_log, milex_gdp, milex_gdp_nato,
 
     # GEOGRAPHY
-    border_rus, dist_rus, dist_enemy,
+    border_rus, border_land_rus, border_enemy, border_enemy_land, border_conf,
+    border_conf_land, dist_rus, dist_conf, dist_enemy,
 
     # OTHER
-    gdp, gdp_local, gdp_cap, debt_gdp, us_troops
+    gdp_cap, debt_gdp, us_troops
   )
 
 
-# 6. GEM MASTER PANELDATA ======================================================
+# 6. POLISH, INSPECT & SAVE ==================================================
 message("--- Section 6: Saving Master Panel ---")
 
 # Define Labels
 # Format: Subject (Unit)
 var_labels <- list(
-  group          = "Treatment grupper",
-  treat_dummy    = "Treatment (dummy)",
+  group          = "Treatment assignment",
+  treat_dummy    = "Group (dummy)",
+  subregion      = "Geographic region (UN definion)",
   post_com       = "Post-Communist (dummy)",
   iso3c          = "Country code",
-  country_dan    = "Country name (Danish)",
+  post_treat     = "Pre/Post (dummy)",
 
   # Main Outcomes
-  milex_usd_log  = "Log Mil. Exp. (const. 2023 US$) SIPRI",
-  milex_gdp      = "Mil. Exp. (% GDP) SIPRI",
-  milex_gdp_nato = "Mil. Exp. (% GDP) NATO",
-
-  # REALISM
-  border_rus     = "Delt grænse med Rusland (dummy)",
-  dist_rus       = "Afstand til Rusland (km)",
-  dist_enemy     = "Korteste afstand til Rusland/Belarus (km)",
+  milex_usd_log  = "Log Mil. Exp. (const. 2023 US$)",
+  milex_gdp      = "Mil. Exp. (% of GDP)",
+  milex_gdp_nato = "Mil. Exp. (% of GDP)",
 
   # Controls
-  gdp            = "Current US$ (Billions)",
-  gdp_local      = "Const. domestic currency",
-  gdp_cap        = "Per capita const. intl. 2021$ (PPP)",
-  debt_gdp       = "Government debt (% GDP)",
-  us_troops      = "Antal Amerikanske tropper"
+  gdp_cap       = "GDP per Capita (PPP 2017 $)",
+  debt_gdp      = "Debt (% of GDP)",
+
 )
 
 master_panel <- master_panel %>% set_variable_labels(.labels = var_labels)
 
-message("\nMaster paneldata struktur (2014-2025):")
+message("\nFinal dataset structure (2014-2024):")
 glimpse(master_panel)
 
-message("\nManglende værdier i Master paneldata:")
+message("\nMissing Values Check:")
 master_panel %>%
   summarise(across(everything(), ~ sum(is.na(.)))) %>%
   pivot_longer(everything(), names_to = "variable", values_to = "na_count") %>%
@@ -367,42 +464,7 @@ master_panel %>%
 
 saveRDS(master_panel, file = MASTER_PANEL)
 
-
-# 7. GEM EVENT-STUDY PANELDATA =================================================
-message("--- Section 7: Gemmer Event-Study paneldata ---")
-
-# Create Focused Event-Study Panel
-es_panel <- master_panel %>%
-  # 1. Filter Sample: Only Treatment and Control groups
-  filter(group %in% c("Kontrol", "Behandlet")) %>%
-  # 2. Filter Time: Exclude 2025 (data availability/relevance)
-  filter(year <= 2024) %>%
-  # 4. Select Variables
-  select(
-    group,
-    treat_dummy,
-    iso3c,
-    country_dan,
-    year,
-    event_time,
-    milex_usd_log,
-    milex_gdp
-  )
-
-message("\nEvent-Study paneldata struktur (2014-2024):")
-glimpse(es_panel)
-
-message("\nManglende værdier i Event-Study paneldata:")
-es_panel %>%
-  summarise(across(everything(), ~ sum(is.na(.)))) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "na_count") %>%
-  filter(na_count > 0) %>%
-  print()
-
-saveRDS(es_panel, file = ES_PANEL)
-
 message(paste(
-  "\n--- Script 01_data_prep.R finished ---",
-  "\nMaster paneldata gemt til:", MASTER_PANEL,
-  "\nEvent-Study paneldata gemt til:" , ES_PANEL
+  "\n--- Script 01_data_processing.R finished ---",
+  "\nMaster panel saved to:", MASTER_PANEL
 ))

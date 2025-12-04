@@ -19,21 +19,22 @@ set.seed(1234)
 
 DIR_DATA    <- here::here("data", "_processed")
 DIR_SCRIPTS <- here::here("scripts")
-DIR_TAB     <- here::here("_output", "_tables", "_es_model")
-DIR_FIG     <- here::here("_output", "_figures", "_es_model")
+DIR_TAB     <- here::here("_output", "_tables", "_es_models")
+DIR_FIG     <- here::here("_output", "_figures", "_es_models")
 
 if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
-MASTER_PANEL <- file.path(DIR_DATA, "master_panel.rds")
+ES_PANEL <- file.path(DIR_DATA, "es_panel.rds")
+
+TREAT_YEAR <- 2022
+
+options(OutDec = ",")
 
 # --- Variables to Analyze ---
 VARS_FOR_ANALYSIS <- c(
-  "milex_usd_log",
   "milex_gdp",
-  "milex_gdp_log",
-  "milex_cap",
-  "milex_cap_log"
+  "milex_usd_log"
 )
 
 # --- Coefficient Labels ---
@@ -67,17 +68,9 @@ model_specs <- list(
   "main" = list(
     suffix      = "main",
     title       = "Main Model (Group-Level Trends)",
-    formula_str = "{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) | iso3c + year + treat_dummy[year]",
+    formula_str = "{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year",
     cluster_fml = "~iso3c",
     subtext     = "cluster = ~iso3c",
-    ref_points  = c(-1, -8)
-  ),
-  "extra" = list(
-    suffix      = "extra",
-    title       = "Extra Model (Robust Clustering)",
-    formula_str = "{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) | iso3c + year + treat_dummy[year]",
-    cluster_fml = "~iso3c + year^subregion",
-    subtext     = "cluster = ~iso3c + year^subregion",
     ref_points  = c(-1, -8)
   )
 )
@@ -111,11 +104,7 @@ options(scipen = 999)
 # 2. PREPARE DATA ============================================================
 message("--- Section 2: Loading and Preparing Data ---")
 
-master_panel <- readRDS(MASTER_PANEL)
-
-analysis_df <- master_panel %>%
-  filter(group %in% c("control", "treatment")) %>%
-  mutate(event_time = year - 2022)
+es_panel <- readRDS(ES_PANEL)
 
 
 # 3. RUN CONSOLIDATED EVENT STUDY LOOP =======================================
@@ -142,7 +131,7 @@ for (var_name in VARS_FOR_ANALYSIS) {
 
       model_es <- feols(
         f_es,
-        data = analysis_df,
+        data = es_panel,
         cluster = c_es
       )
 
@@ -206,7 +195,7 @@ for (var_name in VARS_FOR_ANALYSIS) {
 
       # Y-Axis "0" Label (Mean of reference period -1)
       ref_mean_val <- mean(
-        analysis_df[[var_name]][analysis_df$event_time == -1 & analysis_df$group == "treatment"],
+        es_panel[[var_name]][es_panel$event_time == -1 & es_panel$group == "treatment"],
         na.rm = TRUE
       )
       ref_mean_label <- paste0("0 (", round(ref_mean_val, 2), ")")
@@ -277,5 +266,5 @@ for (var_name in VARS_FOR_ANALYSIS) {
 # 4. SCRIPT COMPLETION =======================================================
 message(paste(
   "\n--- Script 04_outcome_event_study.R finished ---",
-  "\nAll output saved to:", DIR_FIG, "and", DIR_TAB
+  "\nAll output saved to:", DIR_FIG, "\nand", DIR_TAB
 ))

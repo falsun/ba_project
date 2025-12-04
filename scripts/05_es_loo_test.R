@@ -12,42 +12,40 @@
 # 0. CONFIGURATION & PARAMETERS ==============================================
 message("--- Section 0: Loading Configuration ---")
 
+TREAT_YEAR <- 2022
+
+options(OutDec = ",")
+
 # --- Variables to Test ---
 VARS_TO_TEST <- c(
   "milex_usd_log",
-  "milex_gdp",
-  "milex_gdp_log",
-  "milex_cap",
-  "milex_cap_log"
+  "milex_gdp"
 )
 
 # --- Define Directories ---
 DIR_DATA    <- here::here("data", "_processed")
 DIR_SCRIPTS <- here::here("scripts")
-DIR_TAB     <- here::here("_output", "_tables", "_robustness")
-DIR_FIG     <- here::here("_output", "_figures", "_robustness")
+DIR_TAB     <- here::here("_output", "_tables", "_es_robustness")
+DIR_FIG     <- here::here("_output", "_figures", "_es_robustness")
 
 if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
-MASTER_PANEL <- file.path(DIR_DATA, "master_panel.rds")
+ES_PANEL <- file.path(DIR_DATA, "es_panel.rds")
 
 
 # 1. ENVIRONMENT SETUP =======================================================
 message("--- Section 1: Setting Up Environment ---")
 
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(
-  tidyverse,  # Data manipulation
-  fixest,     # feols, wald
-  broom,      # tidy()
-  glue,       # String interpolation
-  here,       # File paths
-  gt,         # Tables
-  gtsummary,  # P-value formatting
-  scales,     # Plot scales
-  conflicted
-)
+library(conflicted)
+library(tidyverse)
+library(fixest)
+library(broom)
+library(glue)
+library(here)
+library(gt)
+library(gtsummary)
+library(scales)
 
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
@@ -60,18 +58,13 @@ options(scipen = 999)
 # 2. PREPARE DATA ============================================================
 message("--- Section 2: Loading and Preparing Data ---")
 
-master_panel <- readRDS(MASTER_PANEL)
+es_panel <- readRDS(ES_PANEL)
 
-# Create analysis DF
-analysis_df <- master_panel %>%
-  filter(group %in% c("control", "treatment")) %>%
-  mutate(event_time = year - 2022)
-
-all_units_loo <- unique(analysis_df$iso3c)
+all_units_loo <- unique(es_panel$iso3c)
 
 # Create a lookup table for group status (for plotting colors)
-unit_info <- analysis_df %>%
-  distinct(iso3c, group) %>%
+unit_info <- es_panel %>%
+  distinct(iso3c, group, country_dan) %>%
   rename(dropped_unit = iso3c)
 
 
@@ -79,7 +72,7 @@ unit_info <- analysis_df %>%
 run_main_spec <- function(data, var_name) {
 
   # Main Model Formula (Group Trends + iso3c Cluster)
-  fml <- as.formula(glue("{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) | iso3c + year + treat_dummy[year]"))
+  fml <- as.formula(glue("{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year"))
 
   mod <- feols(fml, data = data, cluster = ~iso3c)
 
@@ -119,7 +112,7 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
   message(paste("\n--- Processing:", VAR_TO_TEST, "---"))
 
   # A. Run Baseline (Full Sample)
-  baseline <- run_main_spec(analysis_df, VAR_TO_TEST) %>%
+  baseline <- run_main_spec(es_panel, VAR_TO_TEST) %>%
     mutate(dropped_unit = "Baseline")
 
   # Capture Baseline 2024 estimate (for plot line)
@@ -127,7 +120,7 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
 
   # B. Run LOO Loop
   loo_res <- map_dfr(all_units_loo, function(unit) {
-    dat_sub <- analysis_df %>% filter(iso3c != unit)
+    dat_sub <- es_panel %>% filter(iso3c != unit)
     run_main_spec(dat_sub, VAR_TO_TEST) %>%
       mutate(dropped_unit = unit)
   })
@@ -135,8 +128,25 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
   # C. Combine & Add Group Info
   final_df <- bind_rows(baseline, loo_res) %>%
     left_join(unit_info, by = "dropped_unit") %>%
-    # If Baseline, set group to "Baseline" (for coloring)
-    mutate(group = ifelse(dropped_unit == "Baseline", "Baseline", group)) %>%
+
+
+    mutate(
+      # If it's the Baseline row, keep "Baseline".
+      # Otherwise, use country_dan (and fallback to ISO if missing).
+      display_name = ifelse(dropped_unit == "Baseline",
+                            "Baseline",
+                            coalesce(country_dan, dropped_unit)),
+
+      # Determine group for coloring (Baseline logic remains)
+      group = ifelse(dropped_unit == "Baseline", "Baseline", group)
+    ) %>%
+
+    # Use the new display_name as the main identifier moving forward
+    mutate(dropped_unit = display_name) %>%
+    select(-display_name, -country_dan) %>% # Clean up
+    # --- NEW LOGIC END ---
+
+
     arrange(estimate_att_2024)
 
   # --- OUTPUT 1: THE TABLE ---
@@ -148,19 +158,16 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
       att_2023_fmt = glue("{round(estimate_att_2023, 3)} ({gtsummary::style_pvalue(p.value_att_2023, digits = 3)})"),
       att_2024_fmt = glue("{round(estimate_att_2024, 3)} ({gtsummary::style_pvalue(p.value_att_2024, digits = 3)})")
     ) %>%
-    select(dropped_unit, att_2024_fmt, att_2023_fmt, att_2022_fmt, p_pre_fmt)
+    select(dropped_unit, group, att_2024_fmt, att_2023_fmt, att_2022_fmt, p_pre_fmt)
 
   gt_tab <- gt(table_data) %>%
-    tab_header(
-      title = glue("Leave-One-Out Test (Main Model): {VAR_TO_TEST}"),
-      subtitle = "Sorted by 2024 ATT (ascending)"
-    ) %>%
     cols_label(
-      dropped_unit = "Dropped Unit",
+      dropped_unit = "Fjernet Enhed",
+      group        = "Gruppe",
       att_2024_fmt = "ATT 2024",
       att_2023_fmt = "ATT 2023",
       att_2022_fmt = "ATT 2022",
-      p_pre_fmt = "Pre-Trend (p)"
+      p_pre_fmt = "Pre-Trend F-Test (p)"
     ) %>%
     cols_align(align = "right", columns = 2:5) %>%
     theme_gt_bachelor_project() %>%
@@ -168,7 +175,7 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
       style = cell_text(weight = "bold"),
       locations = cells_body(rows = dropped_unit == "Baseline")
     ) %>%
-    tab_source_note("ATT columns have p-values in parentheses.")
+    tab_source_note("Sorteret efter 2024 ATT (stigende). ATT kolloner har p-værdier i parentes.")
 
   gtsave(gt_tab, file = file.path(DIR_TAB, glue("loo_table_{VAR_TO_TEST}.html")))
 
@@ -185,13 +192,13 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
     geom_point(aes(color = group), size = 2.5) +
     scale_color_project_qual(name = NULL) +
     labs(
-      title = glue("Leave-One-Out Test (Main Model): {VAR_TO_TEST}"),
       x = "2024 ATT",
       y = NULL,
-      caption = "Black line indicates baseline ATT"
+      caption = "Stiplet linje indikerer reel 2024 ATT.\nPre-trend F-test er insignifikant (p > 0,05) og 2024 ATT er signifikant (p < 0,05) på tværs af samtlige udeladelser."
     ) +
     theme_bachelor_project() +
-    theme(legend.position = "bottom")
+    theme(panel.grid.major.y = element_line(),
+          legend.position = "bottom")
 
   ggsave(file.path(DIR_FIG, glue("loo_plot_{VAR_TO_TEST}.png")), p_loo, width = 8, height = 6)
 }

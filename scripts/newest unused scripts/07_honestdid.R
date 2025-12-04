@@ -14,6 +14,9 @@
 # ============================================================================ #
 message("--- Section 0: Loading Configuration ---")
 
+END_YEAR <- 2024
+TREATMENT_YEAR <- 2022
+
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse, fixest, broom, HonestDiD, glue, here, conflicted)
 conflict_prefer("filter", "dplyr")
@@ -37,7 +40,7 @@ if (file.exists(file.path(DIR_SCRIPTS, "00_functions.R"))) {
 MASTER_PANEL <- file.path(DIR_DATA, "master_panel.rds")
 
 # --- Parameters ---
-VARS_TO_TEST <- c("milex_cap", "milex_gdp")
+VARS_TO_TEST <- c("milex_usd_log", "milex_gdp")
 POST_LABELS  <- c("2022", "2023", "2024")
 
 # 1. Config for Relative Magnitude (RM)
@@ -45,7 +48,7 @@ SENSITIVITY_M_VEC_RM <- seq(0, 1.5, by = 0.5)
 
 # 2. Config for Smoothness (Variable-specific grids)
 SENSITIVITY_GRIDS_SMOOTH <- list(
-  "milex_cap" = seq(0, 12, by = 3),
+  "milex_usd_log" = seq(0, 12, by = 3),
   "milex_gdp" = seq(0, 0.012, by = 0.003)
 )
 
@@ -58,7 +61,8 @@ message("--- Section 1: Loading Data ---")
 master_panel <- readRDS(MASTER_PANEL)
 analysis_df <- master_panel %>%
   filter(group %in% c("control", "treatment")) %>%
-  mutate(event_time = year - 2022)
+  filter(year <= END_YEAR) %>%
+  mutate(event_time = year - TREATMENT_YEAR)
 
 message("--- Section 2: Starting Calculation & Plotting Loop ---")
 
@@ -147,12 +151,12 @@ for (VAR_NAME in VARS_TO_TEST) {
   # -------------------------------------------------------
   # Dynamic Labels & Widths
   x_label_unit <- case_when(
-    VAR_NAME == "milex_cap" ~ "Max. Allowable Post-Trend Deviation from Linear Trend (US$)",
+    VAR_NAME == "milex_usd_log" ~ "Max. Allowable Post-Trend Deviation from Linear Trend (US$)",
     VAR_NAME == "milex_gdp" ~ "Max. Allowable Post-Trend Deviation from Linear Trend (% of GDP)"
   )
 
   bar_width <- case_when(
-    VAR_NAME == "milex_cap" ~ 0.6,
+    VAR_NAME == "milex_usd_log" ~ 0.6,
     VAR_NAME == "milex_gdp" ~ 0.0006
   )
 
