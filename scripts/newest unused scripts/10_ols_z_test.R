@@ -18,7 +18,9 @@ if (file.exists(here::here("scripts", "00_functions.R"))) {
   source(here::here("scripts", "00_functions.R"))
 } else {
   # Fallback if function script missing
-  theme_gt_bachelor_project <- function(data) { data }
+  ba_theme_gt <- function(data) {
+    data
+  }
 }
 
 # 0. Load Data
@@ -27,7 +29,7 @@ ols_data <- readRDS(here("data", "_processed", "ols_data.rds"))
 
 # 1. Define the models (Model 6: Full Specification)
 # We use the full model to ensure we control for all competing factors
-model_pre  <- lm(milex_gdp_pre ~ dist_enemy_log + border_rus + nato_gap_2014 + gdp_2014_log, data = ols_data)
+model_pre <- lm(milex_gdp_pre ~ dist_enemy_log + border_rus + nato_gap_2014 + gdp_2014_log, data = ols_data)
 model_post <- lm(milex_gdp_post ~ dist_enemy_log + border_rus + nato_gap_2021 + gdp_2021_log, data = ols_data)
 
 # 2. Extract Coefficients and SEs (HC3)
@@ -46,8 +48,7 @@ get_stats <- function(model, var_name) {
 # 3. Calculate Z-Score
 # Updated to accept different names for Pre and Post variables
 compare_coeffs <- function(label, var_pre, var_post) {
-
-  stats_pre  <- get_stats(model_pre, var_pre)
+  stats_pre <- get_stats(model_pre, var_pre)
   stats_post <- get_stats(model_post, var_post)
 
   # Paternoster Clogg Z-test Formula
@@ -72,7 +73,6 @@ compare_coeffs <- function(label, var_pre, var_post) {
 # 4. Run Tests
 # We map the 2014 variables to their 2021 counterparts
 z_results <- bind_rows(
-
   # H2: Threat (Distance) - Same name
   compare_coeffs("Log afstand til fjende (km)", "dist_enemy_log", "dist_enemy_log"),
 
@@ -100,8 +100,12 @@ print(z_results)
 # Function to format p-values (Reuse from Script 11)
 format_p_val <- function(x) {
   sapply(x, function(val) {
-    if (is.na(val)) return(NA)
-    if (val < 0.001) return("<0,001")
+    if (is.na(val)) {
+      return(NA)
+    }
+    if (val < 0.001) {
+      return("<0,001")
+    }
     formatC(val, digits = 3, format = "f", decimal.mark = ",")
   })
 }
@@ -110,13 +114,11 @@ z_table <- z_results %>%
   # Select only the columns we need for the final table
   select(Variable, Beta_Pre, Beta_Post, Diff, Z_Score, P_Value) %>%
   gt() %>%
-
   # Title and Subtitle
   tab_header(
     title = "Sammenligning af Effekter (Z-Test) - Forsvarsbudget (% BNP)",
     subtitle = "Test for signifikant forskel i koefficienter mellem præ- og post-invasion"
   ) %>%
-
   # Column Labels (Danish)
   cols_label(
     Variable  = "Variabel",
@@ -126,13 +128,12 @@ z_table <- z_results %>%
     Z_Score   = "Z-Score",
     P_Value   = "P-værdi"
   ) %>%
-  theme_gt_bachelor_project() %>%
+  ba_theme_gt() %>%
   # P-value Formatting (<0,001)
   fmt(
     columns = c(P_Value),
     fns = format_p_val
   ) %>%
-
   # Add Footnote explaining the test
   tab_source_note(
     source_note = "Note: Z-test baseret på Paternoster et al. (1998) formel med HC3 robuste standardfejl. Tester nulhypotesen om at forskellen mellem koefficienterne er nul."

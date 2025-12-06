@@ -1,16 +1,15 @@
 # ---------------------------------------------------------------------------- #
 #
 #   Projekt:      BACHELOR PROJEKT
-#   Script:       04_es_models.R
+#   Script:       02_es_models.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
 #   Dato:         06-12-2025
 #   Beskrivelse:  Event-study modeller
-#                 1. Estimerer modeller (TWFE og TWFE + gruppetrends) for begge
-#                    afhængige variabler.
+#                 1. Estimerer modeller (TWFE og TWFE + gruppetrends)
 #                 2. Generer plots
 #                 3. Gemmer resultater i tabeller
 #                 4. Generer diagnostisk plot og tabel for at vurdere om
-#                    korrektion for gruppetendenser fungerer efter hensigten.
+#                    gruppetendenser fungerer efter hensigten.
 #
 # ---------------------------------------------------------------------------- #
 
@@ -46,7 +45,7 @@ DIR_FIG <- here::here("_output", "_figures", "_es_models")
 if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
-# Indlæser funktioner og brugerdefinerede temaer
+# Indlæser funktioner
 source(file.path(DIR_SCRIPTS, "00_functions.R"))
 
 # Sætter komma som decimal-tegn
@@ -109,30 +108,19 @@ model_specs <- list(
 )
 
 
-# 2. DATAFORBEREDELSE ==========================================================
-message("--- Sektion 2: Indlæser og forbereder data ---")
-
-# Indlæser event-study panel fra 01_data_prep.R
-es_panel <- readRDS(ES_PANEL)
-
-labels_df <- enframe(COEF_LABELS, name = "term", value = "label")
-
-# Container til hældningskoefficienter for gruppetrends diagnostik tabel
-trend_slope_list <- list()
-
-
-# 3. KØR EVENT STUDY LOOP ======================================================
+# 3. EVENT STUDY MODELLER ======================================================
 message("--- Sektion 3: Estimerer event-study modeller ---")
 
+es_panel <- readRDS(ES_PANEL)
+labels_df <- enframe(COEF_LABELS, name = "term", value = "label")
 
 # Ydre loop: Variabler
 for (var_name in VARS_FOR_ANALYSIS) {
-  var_label <- VAR_LABELS[var_name]
-  message(paste("Behandler", var_label))
+  message(paste("Behandler variabel:", var_name))
   # Indre loop: Model Specifikationer
   for (spec_name in names(model_specs)) {
     spec <- model_specs[[spec_name]]
-    message(paste(spec$suffix, "model"))
+    message(paste(spec$suffix))
 
     ## 3.1. ESTIMER MODEL ------------------------------------------------------
     model_es <- feols(
@@ -168,7 +156,7 @@ for (var_name in VARS_FOR_ANALYSIS) {
         uniform.high = estimate + crit_val_unif * std.error
       )
 
-    # 3.2. EVENT-STUDY PLOT ----------------------------------------------------
+    # 3.2. EVENT-STUDY PLOTS ---------------------------------------------------
     plot_breaks <- sort(unique(c(table_data$event_time_num, spec$ref_points)))
     label_map <- setNames(
       c(as.character(table_data$label), "2021", "2014"),
@@ -201,67 +189,15 @@ for (var_name in VARS_FOR_ANALYSIS) {
         return(b)
       }) +
       labs(x = NULL, y = "ATT") +
-      ba_theme()
-    # gem plot
+      theme_bachelor_project()
+
     ggsave(
-      file.path(DIR_FIG, glue("es_plot_{spec$suffix}_{var_name}.png")), p_es,
+      file.path(DIR_FIG, glue("es_{spec$suffix}_plot_{var_name}_2.png")),
+      p_es,
       width = 8, height = 5
     )
 
-    # 3.3. GRUPPETENDENSER DIAGNOSTIK ------------------------------------------
-    if (spec$suffix == "group_trends") {
-      message("Gemmer gruppetendens diagnostik plot og data")
-      coef_data <- tidy(model_es) %>%
-        filter(grepl("event_time::", term)) %>%
-        mutate(event_time = as.numeric(str_extract(term, "-?\\d+"))) %>%
-        select(event_time, att = estimate) %>%
-        add_row(event_time = spec$ref_points, att = 0)
-      # Data til plot
-      plot_data_recon <- es_panel %>%
-        filter(group == "Kontrol") %>%
-        summarise(
-          Kontrol = mean(!!sym(var_name), na.rm = TRUE),
-          .by = c(year, event_time)
-        ) %>%
-        left_join(coef_data, by = "event_time") %>%
-        mutate(
-          att = replace_na(att, 0),
-          Behandlet = Kontrol + att
-        ) %>%
-        pivot_longer(
-          c(Kontrol, Behandlet),
-          names_to = "group",
-          values_to = "mean_val"
-        )
-      # Gruppetendens korrigeret plot
-      p_recon <- ggplot(plot_data_recon, aes(x = year, y = mean_val, color = group)) +
-        geom_vline(xintercept = TREAT_YEAR - 1, linetype = "dashed", color = "grey40") +
-        geom_line() +
-        scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
-        scale_color_project_qual(name = NULL) +
-        labs(
-          y = var_label,
-          x = NULL,
-          color = NULL,
-          caption = "Behandlet linje er konstrueret som: Kontrolgruppe + Event-study koefficienter."
-        ) +
-        ba_theme()
-      # gem plot
-      ggsave(
-        file.path(DIR_FIG, glue("es_diag_plot_{spec$suffix}_{var_name}.png")),
-        p_recon,
-        width = 8, height = 6
-      )
-      # Gem hældning til tabel
-      slope_val <- coef(model_es)[["treat_dummy::1:year"]]
-      trend_slope_list[[var_name]] <- tibble(
-        year = 2014:2024,
-        var  = var_label,
-        corr = slope_val * (year - 2014)
-      )
-    }
-
-    # 3.4. EVENT-STUDY TABEL ---------------------------------------------------
+    # 3.3. EVENT-STUDY TABELLER ------------------------------------------------
     tbl_es <- table_data %>%
       select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
       gt() %>%
@@ -284,30 +220,100 @@ for (var_name in VARS_FOR_ANALYSIS) {
         columns = p.value,
         fns = function(x) style_pvalue(x, digits = 3)
       ) %>%
-      ba_theme_gt() %>%
-      gtsave(file = file.path(DIR_TAB, glue("es_table_{spec$suffix}_{var_name}.html")))
+      theme_gt_bachelor_project() %>%
+      gtsave(file = file.path(DIR_TAB, glue("es_{spec$suffix}_{var_name}.html")))
   }
 }
 
 
-# 4. GRUPPETENDENS DIAGNOSTIK TABEL ============================================
-message("--- Sektion 4: Genererer samlet gruppetendens diagnostik tabel ---")
+# 4. GRUPPETENDENSER DIAGNOSTIK ================================================
+message("--- Sektion 4: Kører Trend Correction Diagnostics ---")
 
-if (length(trend_slope_list) > 0) {
-  tbl_trend <- bind_rows(trend_slope_list) %>%
-    pivot_wider(names_from = var, values_from = corr) %>%
-    gt() %>%
-    cols_label(year = "År") %>%
-    fmt_number(columns = -year, decimals = 3, dec_mark = ",", sep_mark = ".") %>%
-    tab_source_note(
-      source_note = "Isoleret årlig effekt af gruppespecifik lineær tidstendens."
+# --- A. PLOTTING LOOP (Kører per variabel) ------------------------------------
+
+for (var_name in VARS_FOR_ANALYSIS) {
+  var_label <- VAR_LABELS[var_name]
+  message(glue("   Genererer plot for: {var_label}"))
+
+  # 1. Estimer Model
+  f_main <- as.formula(glue("{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year"))
+  mod_main <- feols(f_main, data = es_panel, cluster = ~iso3c)
+
+  # 2. Hent ATT koefficienter + Referencepunkter
+  coef_data <- tidy(mod_main) %>%
+    filter(grepl("event_time::", term)) %>%
+    mutate(event_time = as.numeric(str_extract(term, "-?\\d+"))) %>%
+    select(event_time, att = estimate) %>%
+    add_row(event_time = c(-1, -8), att = 0) # Tilføj referencer manuelt
+
+  # 3. Konstruer Plot Data (Baseline + ATT)
+  plot_data <- es_panel %>%
+    filter(group == "Kontrol") %>%
+    summarise(
+      Kontrol = mean(!!sym(var_name), na.rm = TRUE),
+      .by = c(year, event_time)
     ) %>%
-    ba_theme_gt() %>%
-    gtsave(file = file.path(DIR_TAB, "es_diag_table_group_trends.html"))
+    left_join(coef_data, by = "event_time") %>%
+    mutate(
+      att = replace_na(att, 0),
+      Behandlet = Kontrol + att
+    ) %>%
+    pivot_longer(c(Kontrol, Behandlet), names_to = "group", values_to = "mean_val")
+
+  # 4. Generer Plot
+  p_recon <- ggplot(plot_data, aes(x = year, y = mean_val, color = group)) +
+    geom_vline(xintercept = TREAT_YEAR - 1, linetype = "dashed", color = "grey40") +
+    geom_line() +
+    scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
+    scale_color_project_qual(name = NULL) +
+    labs(
+      y = var_label, x = NULL, color = NULL,
+      caption = "Behandlet linje er konstrueret som: Kontrolgruppen + Event-study koefficienterne."
+    ) +
+    theme_bachelor_project()
+
+  ggsave(
+    file.path(DIR_FIG, glue("trend_correction_plot_{var_name}_2.png")),
+    p_recon,
+    width = 8, height = 6, bg = "white"
+  )
 }
 
 
-# 5. SCRIPT FÆRDIG =============================================================
+# --- B. CONSOLIDATED TABLE (Kører én gang for alle) ---------------------------
+message("   Genererer samlet tabel for trend corrections...")
+
+# 1. Beregn hældninger og korrektioner
+trend_table_data <- map_dfr(VARS_FOR_ANALYSIS, function(v_code) {
+  # Estimer model for at hente hældningskoefficienten (slope)
+  f_main <- as.formula(glue("{v_code} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year"))
+  mod <- feols(f_main, data = es_panel, cluster = ~iso3c)
+
+  # Udtræk hældning (Interaction mellem treat_dummy og year)
+  slope <- coef(mod)[["treat_dummy::1:year"]]
+
+  # Returner data for årene 2014-2024
+  tibble(
+    year = 2014:2024,
+    var  = VAR_LABELS[v_code],
+    corr = slope * (year - 2014)
+  )
+})
+
+# 2. Formater og gem tabel
+tbl_trend <- trend_table_data %>%
+  pivot_wider(names_from = var, values_from = corr) %>%
+  gt() %>%
+  cols_label(year = "År") %>%
+  fmt_number(columns = -year, decimals = 3, dec_mark = ",", sep_mark = ".") %>%
+  tab_source_note(
+    source_note = "Tabellen viser den isolerede årlige effekt af den gruppespecifikke lineære tidstendens."
+  ) %>%
+  theme_gt_bachelor_project() %>%
+  gtsave(file = file.path(DIR_TAB, "trend_correction_combined_2.html"))
+
+
+# 6. SCRIPT FÆRDIG =============================================================
 
 message(paste(
   "\n--- Script 04_es_models.R færdigt ---",

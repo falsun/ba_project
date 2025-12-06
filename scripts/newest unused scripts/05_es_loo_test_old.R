@@ -1,68 +1,69 @@
 # ---------------------------------------------------------------------------- #
 #
-#   Project:      NATO Defence Spending Bachelor's Thesis
-#   Script:       06_robustness_leave_one_out.R
-#   Author:       Frederik Bender Bøeck-Nielsen
-#   Date:         2025-11-20
-#   Description:  Runs a Leave-One-Out (LOO) robustness test for the MAIN MODEL.
-#                 Outputs sorted Tables (Baseline floating) and colored Plots.
+#   Projekt:      BACHELOR PROJEKT
+#   Script:       05_es_loo.R
+#   Forfatter:    Frederik Bender Bøeck-Nielsen
+#   Dato:         06-12-2025
+#   Beskrivelse:  Leave-one-out test for event-study modellerne
+#                 1. Gemmer et plot for hver variabel, med ændringen i 2024 ATT.
+#                 2. Opretter en samlet tabel for hver variabel, med post-
+#                    treatment ATTs og pre-trend F-test p-værdier.
 #
 # ---------------------------------------------------------------------------- #
 
-# 0. CONFIGURATION & PARAMETERS ==============================================
-message("--- Section 0: Loading Configuration ---")
 
-TREAT_YEAR <- 2022
+# 1. OPSÆTNING AF ARBEJDSMILJØ =================================================
+message("--- Sektion 1: Opsætter arbejdsmiljø ---")
 
-options(OutDec = ",")
-
-# --- Variables to Test ---
-VARS_TO_TEST <- c(
-  "milex_usd_log",
-  "milex_gdp"
-)
-
-# --- Define Directories ---
-DIR_DATA    <- here::here("data", "_processed")
-DIR_SCRIPTS <- here::here("scripts")
-DIR_TAB     <- here::here("_output", "_tables", "_es_robustness")
-DIR_FIG     <- here::here("_output", "_figures", "_es_robustness")
-
-if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
-if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
-
-ES_PANEL <- file.path(DIR_DATA, "es_panel.rds")
-
-
-# 1. ENVIRONMENT SETUP =======================================================
-message("--- Section 1: Setting Up Environment ---")
-
-library(conflicted)
-library(tidyverse)
-library(fixest)
+# indlæser pakker
+library(conflicted) # håndtering af pakke konflikter
+library(here) # robuste filstier
+library(tidyverse) # data manipulation
+library(fixest) # event-study modeller
 library(broom)
 library(glue)
-library(here)
 library(gt)
 library(gtsummary)
 library(scales)
 
+# håndterer konflikter
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
 
+# Input filstier
+DIR_SCRIPTS <- here::here("scripts")
+DIR_DATA <- here::here("data", "_processed")
+ES_PANEL <- file.path(DIR_DATA, "es_panel.rds")
+
+# Output filstier
+DIR_TAB <- here::here("_output", "_tables", "_es_robustness")
+DIR_FIG <- here::here("_output", "_figures", "_es_robustness")
+if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
+if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
+
+# Indlæser funktioner og brugerdefinerede temaer
 source(file.path(DIR_SCRIPTS, "00_functions.R"))
 
-options(scipen = 999)
+# Sætter komma som decimal-tegn
+options(OutDec = ",")
 
 
-# 2. PREPARE DATA ============================================================
-message("--- Section 2: Loading and Preparing Data ---")
+## 1.1. PARAMETRE --------------------------------------------------------------
+
+# Definerer behandlingsår
+TREAT_YEAR <- 2022
+
+# Variabler
+VARS_TO_TEST <- c("milex_usd_log", "milex_gdp")
+
+
+# 2. DATAFORBEREDELSE ==========================================================
+message("--- Sektion 2: Indlæser og forbereder data ---")
 
 es_panel <- readRDS(ES_PANEL)
-
 all_units_loo <- unique(es_panel$iso3c)
 
-# Create a lookup table for group status (for plotting colors)
+# Lookup table for gruppestatus
 unit_info <- es_panel %>%
   distinct(iso3c, group, country_dan) %>%
   rename(dropped_unit = iso3c)
@@ -70,7 +71,6 @@ unit_info <- es_panel %>%
 
 # 3. HELPER FUNCTION: RUN MAIN MODEL & EXTRACT ===============================
 run_main_spec <- function(data, var_name) {
-
   # Main Model Formula (Group Trends + iso3c Cluster)
   fml <- as.formula(glue("{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year"))
 
@@ -92,7 +92,7 @@ run_main_spec <- function(data, var_name) {
   pre_terms <- coefs[grepl("event_time::", coefs) & grepl("-", coefs)]
   p_pre <- NA
   if (length(pre_terms) > 0) {
-    ft <- try(wald(mod, pre_terms), silent=TRUE)
+    ft <- try(wald(mod, pre_terms), silent = TRUE)
     if (!inherits(ft, "try-error")) p_pre <- ft$p[1]
   }
 
@@ -128,19 +128,17 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
   # C. Combine & Add Group Info
   final_df <- bind_rows(baseline, loo_res) %>%
     left_join(unit_info, by = "dropped_unit") %>%
-
-
     mutate(
       # If it's the Baseline row, keep "Baseline".
       # Otherwise, use country_dan (and fallback to ISO if missing).
       display_name = ifelse(dropped_unit == "Baseline",
-                            "Baseline",
-                            coalesce(country_dan, dropped_unit)),
+        "Baseline",
+        coalesce(country_dan, dropped_unit)
+      ),
 
       # Determine group for coloring (Baseline logic remains)
       group = ifelse(dropped_unit == "Baseline", "Baseline", group)
     ) %>%
-
     # Use the new display_name as the main identifier moving forward
     mutate(dropped_unit = display_name) %>%
     select(-display_name, -country_dan) %>% # Clean up
@@ -163,7 +161,7 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
   gt_tab <- gt(table_data) %>%
     cols_label(
       dropped_unit = "Fjernet Enhed",
-      group        = "Gruppe",
+      group = "Gruppe",
       att_2024_fmt = "ATT 2024",
       att_2023_fmt = "ATT 2023",
       att_2022_fmt = "ATT 2022",
@@ -197,11 +195,19 @@ for (VAR_TO_TEST in VARS_TO_TEST) {
       caption = "Stiplet linje indikerer reel 2024 ATT.\nPre-trend F-test er insignifikant (p > 0,05) og 2024 ATT er signifikant (p < 0,05) på tværs af samtlige udeladelser."
     ) +
     theme_bachelor_project() +
-    theme(panel.grid.major.y = element_line(),
-          legend.position = "bottom")
+    theme(
+      panel.grid.major.y = element_line(),
+      legend.position = "bottom"
+    )
 
   ggsave(file.path(DIR_FIG, glue("loo_plot_{VAR_TO_TEST}.png")), p_loo, width = 8, height = 6)
 }
 
-# 5. SCRIPT COMPLETION =======================================================
-message(paste("\n--- Script 06_robustness_leave_one_out.R finished ---"))
+
+# 4. SCRIPT FÆRDIG =============================================================
+
+message(paste(
+  "\n--- Script 04_es_models.R færdigt ---",
+  "\nAlle tabeller er gemt i:", DIR_TAB,
+  "\nAlle figurer er gemt i:", DIR_FIG
+))

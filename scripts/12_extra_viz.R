@@ -15,9 +15,9 @@ message("--- Section 0: Loading Configuration ---")
 
 TREATMENT_YEAR <- 2022
 
-DIR_DATA       <- here::here("data", "_processed")
-DIR_SCRIPTS    <- here::here("scripts")
-DIR_FIG        <- here::here("_output", "_figures")
+DIR_DATA <- here::here("data", "_processed")
+DIR_SCRIPTS <- here::here("scripts")
+DIR_FIG <- here::here("_output", "_figures")
 
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
@@ -63,9 +63,11 @@ ridgeline_plot <- ggplot(plot_data_ridgeline, aes(x = milex_gdp, y = year_f, fil
     values = scales::rescale(c(0, 1, 2, 3, 4, 5), from = c(0, 5)),
     limits = c(0, 5),
   ) +
-  theme_bachelor_project() +
-  theme(legend.position = "none",
-        panel.grid.major.y = element_blank()) +
+  ba_theme() +
+  theme(
+    legend.position = "none",
+    panel.grid.major.y = element_blank()
+  ) +
   labs(
     title = "Distribution of Military Expenditure (% of GDP) Over Time.",
     x = NULL,
@@ -75,6 +77,7 @@ ridgeline_plot <- ggplot(plot_data_ridgeline, aes(x = milex_gdp, y = year_f, fil
 ggsave(file.path(DIR_FIG, "milex_gdp_ridgeline.png"), ridgeline_plot, width = 8, height = 6, bg = "white")
 
 # 4. SCRIPT COMPLETION =======================================================
-message(paste("\n--- Script 04_viz.R finished ---",
-              "\nAll figures saved to:", DIR_FIG))
-
+message(paste(
+  "\n--- Script 04_viz.R finished ---",
+  "\nAll figures saved to:", DIR_FIG
+))
