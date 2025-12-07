@@ -1,9 +1,9 @@
 # ---------------------------------------------------------------------------- #
 #
 #   Projekt:      BACHELOR PROJEKT
-#   Script:       02_es_prelims.R
+#   Script:       03_es_prelims.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         05-12-2025
+#   Dato:         07-12-2025
 #   Beskrivelse:  Forudsætningstests for event-study modeller.
 #                 1. Tester validiteten af kontrolgruppen (placebo-in-space).
 #                 2. Tester for tværsnitsafhængighed (Pesaran's CD).
@@ -18,14 +18,13 @@ message("--- Sektion 1: Opsætter arbejdsmiljø ---")
 # indlæser pakker
 library(conflicted) # håndtering af pakke konflikter
 library(here) # robuste filstier
-library(tidyverse) # data manipulation
+library(tidyverse) # data manipulation og visualiseringer
 library(fixest) # event-study modeller
-library(plm)
-library(broom)
-library(gt)
-library(gtsummary)
-library(glue)
-library(scales)
+library(plm) # CSD og LLC test
+library(broom) # tidy model output
+library(gtsummary) # tabel og formatering af p-værdier
+library(gt) # formatér tabel
+library(glue) # formatér beskeder, labels og formler
 
 # håndterer konflikter
 conflict_prefer("filter", "dplyr")
@@ -37,7 +36,7 @@ DIR_SCRIPTS <- here("scripts")
 DIR_DATA <- here("data", "_processed")
 ES_PANEL <- file.path(DIR_DATA, "es_panel.rds")
 
-# Output filstiler
+# Output filstier
 DIR_TAB <- here("_output", "_tables", "_es_prelims")
 DIR_FIG <- here("_output", "_figures", "_es_prelims")
 if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)

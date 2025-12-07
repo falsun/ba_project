@@ -3,7 +3,7 @@
 #   Projekt:      BACHELOR PROJEKT
 #   Script:       04_es_models.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         06-12-2025
+#   Dato:         07-12-2025
 #   Beskrivelse:  Event-study modeller
 #                 1. Estimerer modeller (TWFE og TWFE + gruppetrends) for begge
 #                    afhængige variabler.
@@ -21,28 +21,26 @@ message("--- Sektion 1: Opsætter arbejdsmiljø ---")
 # indlæser pakker
 library(conflicted) # håndtering af pakke konflikter
 library(here) # robuste filstier
-library(tidyverse) # data manipulation
+library(tidyverse) # data manipulation og visualiseringer
 library(fixest) # event-study modeller
-library(modelsummary)
-library(gt)
-library(broom)
-library(glue)
-library(scales)
+library(gt) # tabelformatering
+library(broom) # konvertering af modelobjekter til dataframes
+library(glue) # formatering af beskeder, labels og formler
 library(MASS) # simulering af uniforme konfidensintervaller
-library(gtsummary)
+library(gtsummary) # tabeller og formatering af p-værdier
 
 # håndterer konflikter
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
 
 # Input filstier
-DIR_SCRIPTS <- here::here("scripts")
-DIR_DATA <- here::here("data", "_processed")
+DIR_SCRIPTS <- here("scripts")
+DIR_DATA <- here("data", "_processed")
 ES_PANEL <- file.path(DIR_DATA, "es_panel.rds")
 
-# Output filstiler
-DIR_TAB <- here::here("_output", "_tables", "_es_models")
-DIR_FIG <- here::here("_output", "_figures", "_es_models")
+# Output filstier
+DIR_TAB <- here("_output", "_tables", "_es_models")
+DIR_FIG <- here("_output", "_figures", "_es_models")
 if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
@@ -155,7 +153,7 @@ for (var_name in VARS_FOR_ANALYSIS) {
     es_terms <- table_data$term
     vcov_mat <- vcov(model_es)[es_terms, es_terms]
     se_vec <- table_data$std.error
-    sim_draws <- MASS::mvrnorm(
+    sim_draws <- mvrnorm(
       n     = N_SIMULATIONS,
       mu    = rep(0, length(es_terms)),
       Sigma = vcov_mat
@@ -237,7 +235,7 @@ for (var_name in VARS_FOR_ANALYSIS) {
       p_recon <- ggplot(plot_data_recon, aes(x = year, y = mean_val, color = group)) +
         geom_vline(xintercept = TREAT_YEAR - 1, linetype = "dashed", color = "grey40") +
         geom_line() +
-        scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
+        scale_x_continuous(breaks = seq(2014, 2024, by = 1)) +
         scale_color_project_qual(name = NULL) +
         labs(
           y = var_label,
@@ -280,10 +278,7 @@ for (var_name in VARS_FOR_ANALYSIS) {
       tab_source_note(source_note = md(glue(
         "**Pre-Trend F-Test (p):** {style_pvalue(p_pre, digits=3)}<br>**Obs.:** {nobs(model_es)}"
       ))) %>%
-      fmt(
-        columns = p.value,
-        fns = function(x) style_pvalue(x, digits = 3)
-      ) %>%
+      fmt(columns = p.value, fns = function(x) style_pvalue(x, digits = 3)) %>%
       ba_theme_gt() %>%
       gtsave(file = file.path(DIR_TAB, glue("es_table_{spec$suffix}_{var_name}.html")))
   }
@@ -299,9 +294,7 @@ if (length(trend_slope_list) > 0) {
     gt() %>%
     cols_label(year = "År") %>%
     fmt_number(columns = -year, decimals = 3, dec_mark = ",", sep_mark = ".") %>%
-    tab_source_note(
-      source_note = "Isoleret årlig effekt af gruppespecifik lineær tidstendens."
-    ) %>%
+    tab_source_note("Isoleret årlig effekt af gruppespecifik lineær tidstendens.") %>%
     ba_theme_gt() %>%
     gtsave(file = file.path(DIR_TAB, "es_diag_table_group_trends.html"))
 }

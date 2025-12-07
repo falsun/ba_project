@@ -3,7 +3,7 @@
 #   Projekt:      BACHELOR PROJEKT
 #   Script:       06_ols_data_trans.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         06-12-2025
+#   Dato:         07-12-2025
 #   Beskrivelse:  Forbereder data til OLS modeller.
 #                 1. Indlæser master_panel.rds og transformerer paneldata om til
 #                    tværsnitsdata
@@ -22,7 +22,7 @@ library(here) # robuste filstier
 library(tidyverse) # data manipulation
 library(labelled) # dataframe labels
 
-# håndterer konflikter
+# Håndterer konflikter
 conflict_prefer("filter", "dplyr")
 conflict_prefer("lag", "dplyr")
 
@@ -42,7 +42,7 @@ message("--- Sektion 2: Indlæser og forbereder data ---")
 # Indlæser master panel fra 01_data_prep.R
 master_panel <- readRDS(MASTER_PANEL)
 
-# filtrerer master_panel.rds
+# Filtrerer master_panel.rds
 df_filtered <- master_panel %>%
   filter(group == "Behandlet") %>%
   filter(year %in% c(2014, 2021, 2024, 2025)) %>%
@@ -83,9 +83,8 @@ ols_data <- df_wide %>%
     dist_enemy_log     = log(dist_enemy),
     dist_conf_log      = log(dist_conf),
 
-    # NATO-mål variabler (sætter alle værdier over 2 til 0, ellers ville
-    # modellen antage at lande over 0 følte negativt pres; pres til at sænke
-    # forsvarsudgifter)
+    # NATO-mål variabler (censurerer værdier >2 til 0, da det antages at lande
+    # der bruger >2% ikke føler et "negativt press"/pres til at sænke udgifter).
     nato_gap_2014      = pmax(0, 2.0 - milex_gdp_nato_2014),
     nato_gap_2021      = pmax(0, 2.0 - milex_gdp_nato_2021),
 
@@ -97,7 +96,7 @@ ols_data <- df_wide %>%
     debt_gdp_2021_log  = log(debt_gdp_2021),
     us_troops_2021_log = log(us_troops_2021),
 
-    # BNP-vækst variabel for at teste nævner-effekt
+    # BNP-vækst (log-differense) for at teste nævner-effekt
     gdp_growth_post    = log(gdp_local_2025) - log(gdp_local_2021)
   ) %>%
   select(
@@ -145,7 +144,7 @@ ols_data %>%
 saveRDS(ols_data, file = OLS_DATA)
 
 
-# 5. SCRIPT FÆRDIGT ------------------------------------------------------------
+# 5. SCRIPT FÆRDIGT ============================================================
 
 message(paste0(
   "\n--- Script 06_ols_data_trans færdigt ---",

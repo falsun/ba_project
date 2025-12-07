@@ -3,7 +3,7 @@
 #   Projekt:      BACHELOR PROJEKT
 #   Script:       01_data_prep.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         05-12-2025
+#   Dato:         07-12-2025
 #   Beskrivelse:  1. Indlæser og renser paneldata til analysen.
 #                 2. Gemmer al data i master_panel.rds.
 #                 3. Gemmer dedikeret es_panel.rds til event-study analysen.
@@ -47,8 +47,8 @@ ES_PANEL <- file.path(DIR_DATA_PROC, "es_panel.rds")
 # Indlæser funktioner
 source(file.path(DIR_SCRIPTS, "00_functions.R"))
 
-# Definerer start år, behandlingsår og slut år
-START_YEAR <- 2014 # Anneksering af Krim og Wales Summit
+# Definerer væsentlige år
+START_YEAR <- 2014 # Anneksering af Krim, samt NATO Wales Summit
 TREAT_YEAR <- 2022 # Fuldskala invasion af Ukraine
 END_YEAR <- 2025 # Nuværende årstal
 
@@ -59,7 +59,7 @@ CONTROL_SEC_MAN <- c("CHL", "ISR", "MEX", "TUR", "USA")
 
 # 2. DATARENS HJÆLPEFUNKTION ===================================================
 # Samler renset data og giver besked i konsollen hvis der er manglende værdier.
-message("--- Sektion 2: Definerer hjælpefunktion til datarens---")
+message("--- Sektion 2: Definerer hjælpefunktion til datarens ---")
 
 merge_and_validate <- function(master_df, new_df, merge_by, source_name) {
   message(paste0("--> Fletter ", source_name, " data sammen med paneldata skabelon"))
@@ -71,10 +71,10 @@ merge_and_validate <- function(master_df, new_df, merge_by, source_name) {
     filter(if_any(all_of(new_cols), is.na)) %>%
     select(iso3c, year, all_of(new_cols))
   if (nrow(missing_data) > 0) {
-    warning(paste("ADVARSEL: Manglende værdier for ", source_name, "data:"))
+    warning(paste("ADVARSEL: Manglende værdier for", source_name, "data"))
     print(missing_data, n = 999)
   } else {
-    message(paste("SUCCES: Ingen manglende værdier for ", source_name, "data."))
+    message(paste("SUCCES: Ingen manglende værdier for", source_name, "data"))
   }
   return(merged_df)
 }
@@ -231,7 +231,7 @@ nato_clean_mod <- nato_clean %>%
     milex_gdp_nato = if_else(iso3c == "DEU" & year == 2025, 2.4, milex_gdp_nato)
   )
 
-print("2025 estimat for Tysklands forsvarsbudget (% BNP) tilføjet:")
+message("2025 estimat for Tysklands forsvarsbudget (% BNP) tilføjet:")
 print(filter(nato_clean_mod, iso3c == "DEU" & year == 2025))
 
 # Sammenfletter NATO data med panel skabelon
@@ -337,7 +337,7 @@ clean_panel <- merge_and_validate(
 ## 4.5 DMDC DATA ---------------------------------------------------------------
 ## Antal amerikanske soldater (tilgået via ustroops pakken)
 
-dmdc_clean <- get_troopdata() %>%
+dmdc_clean <- get_troopdata(guard_reserve = TRUE) %>%
   as_tibble() %>%
   filter(between(year, START_YEAR, END_YEAR)) %>%
   filter(iso3c %in% SAMPLE_ISO3C) %>%

@@ -3,11 +3,13 @@
 #   Projekt:      BACHELOR PROJEKT
 #   Script:       07_ols_eda.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         06-12-2025
-#   Beskrivelse:  EDA for OLS data.
-#                 1. Gemmer deskriptiv statistik tabel
-#                 2. Generer kombineret histogram + boxplot figurer
-#                 3. Tjekker for outliers (1,5 * IQR)
+#   Dato:         07-12-2025
+#   Beskrivelse:  EDA for OLS data:
+#                 1. Gemmer deskriptiv statistik tabel.
+#                 2. Generer kombineret histogram + boxplot figurer.
+#                 3. Tjekker for outliers (1,5 * IQR).
+#                 4. Generer et kort over Europa der viser ændringen i
+#                    forsvarsudgifter (% BNP) for hvert land.
 #
 # ---------------------------------------------------------------------------- #
 
@@ -16,17 +18,21 @@
 message("--- Sektion 1: Opsætter arbejdsmiljø ---")
 
 # Indlæser pakker
-library(conflicted)
-library(here)
-library(tidyverse)
-library(glue)
-library(gt)
-library(gtsummary)
-library(ggcorrplot)
-library(psych)
-library(patchwork)
+library(conflicted) # Håndtering af pakke konflikter
+library(here) # Robuste filstier
+library(tidyverse) # Data manipulation og visualisering
+library(glue) # Tekststreng-interpolation
+library(gt) # Tabelformatering
+library(patchwork) # Sammensætning af plots
+library(moments) # skævhed/skew
+library(ggcorrplot) # korrelationsmatrix
+library(scales) # plot skalaer
+library(sf) # spatial data
+library(rnaturalearth) # kort plots
+library(rnaturalearthdata) # kort data
 
-# håndterer konflikter
+
+# Håndterer konflikter
 conflict_prefer("filter", "dplyr")
 conflict_prefer("lag", "dplyr")
 conflict_prefer("alpha", "ggplot2")
@@ -53,22 +59,23 @@ options(OutDec = ",")
 
 # Variabler
 VARS_FOR_OLS <- c(
-  "milex_gdp_pre"       = "Ændring i forsvarsudgifter 2014-21 (% BNP)",
-  "milex_gdp_post"      = "Ændring i forsvarsudgifter 2021-25 (% BNP)",
-  "milex_usd_pre"       = "Ændring i forsvarsudgifter 2014-21 (log US$)",
-  "milex_usd_post"      = "Ændring i forsvarsudgifter 2021-24 (log US$)",
-  "dist_enemy_log"      = "Afstand til fjende (log km)",
-  "nato_gap_2014"       = "Afstand til 2% mål i 2014 (procentpoint)",
-  "nato_gap_2021"       = "Afstand til 2% mål i 2021 (procentpoint)",
-  "gdp_2014_log"        = "BNP i 2014 (log milliarder)",
-  "gdp_2021_log"        = "BNP i 2021 (log milliarder)",
-  "gdp_cap_2021_log"    = "BNP per indbygger i 2021 (log)",
-  "debt_gdp_2021_log"   = "Offentlig gæld i 2021 (log % BNP)",
-  "gdp_growth_post"     = "BNP vækst 2021-25 (procentpoint)",
-  "us_troops_2021_log"  = "Antal amerikanske tropper i 2021 (log)"
+  "milex_gdp_pre"      = "Ændring i forsvarsudgifter (% BNP), 2014-21",
+  "milex_gdp_post"     = "Ændring i forsvarsudgifter (% BNP), 2021-25",
+  "milex_usd_pre"      = "Ændring i forsvarsudgifter (log USD), 2014-21",
+  "milex_usd_post"     = "Ændring i forsvarsudgifter (log USD), 2021-24",
+  "dist_enemy_log"     = "Afstand til strategisk rival (log km)",
+  "nato_gap_2014"      = "Afstand til NATO's 2%-mål (% BNP), 2014",
+  "nato_gap_2021"      = "Afstand til NATO's 2%-mål (% BNP), 2021",
+  "gdp_2014_log"       = "BNP (log USD), 2014",
+  "gdp_2021_log"       = "BNP (log USD), 2021",
+  "gdp_cap_2021_log"   = "BNP pr. indbygger (log PPP), 2021",
+  "debt_gdp_2021_log"  = "Offentlig gæld (log % BNP), 2021",
+  "gdp_growth_post"    = "BNP-vækst (%), 2021-25",
+  "us_troops_2021_log" = "Antal amerikanske tropper (log), 2021",
+  "border_rus"         = "Delt grænse med Rusland"
 )
 
-# Dummies
+# Dummies (skal ikke plottes)
 VARS_TO_SKIP <- c("border_rus", "post_com")
 
 # Manuelle Breaks
@@ -129,7 +136,7 @@ ols_data <- readRDS(OLS_DATA) %>%
 
 
 # 3. DESKRIPTIV STATISTIK TABEL ================================================
-message("--- Sektion 3: Generer deskriptiv statistik tabel ---")
+message("--- Sektion 3: Genererer deskriptiv statistik tabel ---")
 
 var_meta <- enframe(VARS_FOR_OLS, name = "var_code", value = "label") %>%
   mutate(
@@ -137,8 +144,7 @@ var_meta <- enframe(VARS_FOR_OLS, name = "var_code", value = "label") %>%
       str_detect(var_code, "milex") ~ "Afhængige variabler",
       var_code %in% c(
         "gdp_cap_2021_log", "gdp_growth_post",
-        "debt_gdp_2021_log", "us_troops_2021_log",
-        "post_com"
+        "debt_gdp_2021_log", "us_troops_2021_log"
       ) ~ "Alternative forklaringer",
       TRUE ~ "Uafhængige variabler"
     ),
@@ -164,10 +170,11 @@ summary_stats <- ols_data %>%
     SD = sd(value, na.rm = TRUE),
     Min = min(value, na.rm = TRUE),
     Max = max(value, na.rm = TRUE),
-    Skew = moments::skewness(value, na.rm = TRUE),
+    Skew = skewness(value, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   left_join(var_meta, by = "var_code") %>%
+  filter(var_code != "border_rus") %>%
   arrange(category, label)
 
 tbl_ols_summary <- summary_stats %>%
@@ -185,7 +192,7 @@ tbl_ols_summary <- summary_stats %>%
   cols_label(
     label = "",
     Mean = "Gns. (SD)",
-    Min = "Min.–maks.",
+    Min = "Min–maks.",
     Skew = "Skævhed"
   ) %>%
   tab_source_note("N = 22 for alle variabler.") %>%
@@ -199,64 +206,53 @@ tbl_ols_summary <- summary_stats %>%
   gtsave(file = file.path(DIR_TAB, "ols_summary_stats.html"))
 
 
-# 4. OUTLIER REPORT ============================================================
-# Kalder funktion fra 00_functions.R til at teste for outliers (1,5 * IQR regel).
-# Hvis der er outliers printes de til konsollen sammen med deres Z-score.
-message("--- Sektion 4: Tjekker for outliers (1,5 * IQR) ---")
-
-for (var in names(VARS_FOR_OLS)) {
-  print_outlier_report(
-    data = ols_data,
-    var_name = !!sym(var),
-    var_label = VARS_FOR_OLS[var]
-  )
-}
-
-
-# 5. DISTRIBUERINGSPLOT ========================================================
+# 4. DISTRIBUERINGSPLOT ========================================================
 # Generer kombineret histogram + boxplot
-message("--- Sektion 5: Genererer Distribueringsplots ---")
+message("--- Sektion 4: Genererer distribueringsplots ---")
 
-## 5.1. HJÆLPEFUNKTION ---------------------------------------------------------
-create_ols_distribution_plot <- function(data, var_name, var_label,
-                                         manual_breaks = NULL, manual_binwidth = NULL,
-                                         manual_nudges = NULL,
-                                         manual_caption = NULL, output_dir = NULL) {
-  # --- 1. SETUP & HELPER VARS ---
+## 4.1. HJÆLPEFUNKTION ---------------------------------------------------------
+create_ols_distribution_plot <- function(
+  data,
+  var_name,
+  var_label,
+  manual_breaks = NULL,
+  manual_binwidth = NULL,
+  manual_nudges = NULL,
+  manual_caption = NULL,
+  output_dir = NULL
+) {
   var_enquo <- enquo(var_name)
   var_str <- quo_name(var_enquo)
 
-  # Helper for x-axis formatting
+  # X-akse formatering
   fmt_zero <- function(x) ifelse(x == 0, "0", x)
 
-  # Determine Limits & Scales
+  # Grænser og skalaer
   if (!is.null(manual_breaks)) {
     global_limits <- range(manual_breaks)
-    # Apply special formatting for percentage variables
+    # Anvender speciel formatering for procent-variabler
     lbl_fun <- if (grepl("milex_gdp", var_str) || grepl("gap", var_str)) fmt_zero else waiver()
     x_scale <- scale_x_continuous(breaks = manual_breaks, labels = lbl_fun)
   } else {
-    # Fallback to data range
+    # Fallback til data-rækkevidde
     global_limits <- range(pull(data, {{ var_enquo }}), na.rm = TRUE)
     x_scale <- scale_x_continuous()
   }
 
-  # --- 2. CALCULATE BINWIDTH ---
+  # Beregner optimal binwidth (Freedman-Diaconis)
   if (!is.null(manual_binwidth)) {
     final_bw <- manual_binwidth
-    message(glue::glue(">> '{var_str}': Manual binwidth {final_bw}"))
+    message(glue(">> '{var_str}': Manual binwidth {final_bw}"))
   } else {
-    # Calculate Freedman-Diaconis for the single variable
     vals <- na.omit(pull(data, {{ var_enquo }}))
     iqr_val <- IQR(vals)
-    # Safety fallback if IQR is 0
     if (iqr_val == 0) iqr_val <- diff(range(vals)) / 30
 
     final_bw <- 2 * iqr_val / (length(vals)^(1 / 3))
-    message(glue::glue(">> '{var_str}': Calc binwidth {round(final_bw, 3)}"))
+    message(glue(">> '{var_str}': Calc binwidth {round(final_bw, 3)}"))
   }
 
-  # --- 3. IDENTIFY OUTLIERS ---
+  # Identificerer outliers
   outliers <- data %>%
     mutate(
       iqr_val = IQR({{ var_enquo }}, na.rm = TRUE),
@@ -266,35 +262,27 @@ create_ols_distribution_plot <- function(data, var_name, var_label,
       dev     = abs({{ var_enquo }} - median({{ var_enquo }}, na.rm = TRUE))
     ) %>%
     filter(is_out) %>%
-    # Ensure we only label each country once (max deviation)
     group_by(iso3c) %>%
     slice_max(dev, n = 1, with_ties = FALSE) %>%
     ungroup() %>%
-    # --- 2. NEW LOGIC: APPLY MANUAL NUDGES ---
-    mutate(y_pos = 0) # Default position is exactly on the line
+    mutate(y_pos = 0)
 
-  # If manual nudges exist, apply them
+  # Manuelle nudges (for at undgå iso3c overlap)
   if (!is.null(manual_nudges)) {
-    # We loop through the iso3c codes provided in the list
     for (iso in names(manual_nudges)) {
-      # If the outlier exists in our data, update its y_pos
       outliers$y_pos[outliers$iso3c == iso] <- manual_nudges[[iso]]
     }
   }
 
-  # --- 4. PLOT COMPONENTS ---
-
-  # A. Histogram (Top)
+  # PLOT ELEMENTER
+  # Histogram (top)
   p_hist <- ggplot(data, aes(x = {{ var_enquo }})) +
     geom_histogram(binwidth = final_bw, color = "white", fill = "grey40") +
     ba_theme() +
-    theme(
-      axis.text.x = element_blank(),
-      axis.ticks.x = element_blank(),
-    ) +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
     labs(x = NULL, y = "Frekvens")
 
-  # B. Boxplot (Bottom)
+  # Boxplot (bund)
   p_box <- ggplot(data, aes(x = {{ var_enquo }})) +
     geom_boxplot(width = 0.5, fill = "grey40", outlier.shape = NA) +
     geom_text(
@@ -304,41 +292,35 @@ create_ols_distribution_plot <- function(data, var_name, var_label,
       family = "IBM Plex Serif"
     ) +
     ba_theme() +
-    theme(
-      axis.text.y = element_blank(),
-      axis.ticks.y = element_blank(),
-    ) +
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
     labs(x = var_label, y = NULL, caption = manual_caption)
 
-  # --- 5. ASSEMBLE & SAVE ---
+  # Samler og gemmer
   final_plot <- (p_hist / p_box) + plot_layout(heights = c(8, 1))
-
   final_plot <- final_plot & coord_cartesian(xlim = global_limits) & x_scale
-
   if (!is.null(output_dir)) {
-    ggsave(file.path(output_dir, glue::glue("ols_dist_{var_str}.png")),
-      final_plot,
-      width = 7, height = 6, bg = "white"
+    ggsave(
+      file.path(output_dir, glue("ols_dist_{var_str}.png")), final_plot,
+      width = 7, height = 6
     )
   }
-
   return(final_plot)
 }
 
-## 5.2. GENERER PLOTS ----------------------------------------------------------
+## 4.2. GENERER PLOTS ----------------------------------------------------------
 for (var in names(VARS_FOR_OLS)) {
   if (var %in% VARS_TO_SKIP) {
-    message(glue::glue(">> Skipping plot for binary variable: {var}"))
+    message(glue("Skipper plot for binær variabel: {var}"))
     next
   }
 
-  # Tjek for manuelt angivede indstillinger
+  # Tjekker for manuelt angivede indstillinger
   curr_breaks <- if (var %in% names(MANUAL_BREAKS_OLS)) MANUAL_BREAKS_OLS[[var]] else NULL
   curr_bw <- if (var %in% names(MANUAL_BINWIDTHS_OLS)) MANUAL_BINWIDTHS_OLS[[var]] else NULL
   curr_cap <- if (var %in% names(MANUAL_CAPTIONS_OLS)) MANUAL_CAPTIONS_OLS[[var]] else NULL
   curr_nudges <- if (var %in% names(MANUAL_NUDGES_OLS)) MANUAL_NUDGES_OLS[[var]] else NULL
 
-  # Generer plots
+  # Genererer plots
   create_ols_distribution_plot(
     data = ols_data,
     var_name = !!sym(var),
@@ -352,7 +334,124 @@ for (var in names(VARS_FOR_OLS)) {
 }
 
 
-# 5. SCRIPT FÆRDIG =============================================================
+# 5. KORRELATIONSMATRICER ======================================================
+message("--- Sektion 5: Genererer korrelationsmatricer ---")
+
+## 5.1. HJÆLPEFUNKTION ---------------------------------------------------------
+create_corr_plot <- function(data, vars) {
+  # Udvælg og omdøb variabler til pæne labels
+  corr_data <- data %>%
+    select(all_of(vars)) %>%
+    rename_with(~ VARS_FOR_OLS[.], .cols = everything()) %>%
+    # Sørg for at dummies er numeriske (for cor())
+    mutate(across(everything(), as.numeric)) %>%
+    na.omit()
+
+  # Beregn korrelationsmatrix
+  corr_mat <- cor(corr_data, method = "pearson")
+
+  # Generer plot
+  ggcorrplot(
+    corr_mat,
+    method = "square",
+    type = "lower",
+    lab = TRUE,
+    lab_size = 3,
+    colors = c("darkred", "white", "darkgreen"),
+    ggtheme = ba_theme()
+  ) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none"
+    )
+}
+
+## 5.2. GENERER PLOTS ----------------------------------------------------------
+
+# 2014-21
+vars_period_1 <- c(
+  "milex_gdp_pre", "milex_usd_pre",
+  "nato_gap_2014", "gdp_2014_log",
+  "dist_enemy_log", "border_rus"
+)
+
+p_corr_1 <- create_corr_plot(data = ols_data, vars = vars_period_1)
+
+ggsave(
+  file.path(DIR_FIG, "ols_corr_matrix_2014_2021.png"), p_corr_1,
+  width = 8, height = 8
+)
+
+
+# 2021-25 (2021-24)
+vars_period_2 <- c(
+  "milex_gdp_post", "milex_usd_post",
+  "nato_gap_2021", "gdp_2021_log",
+  "dist_enemy_log", "border_rus"
+)
+
+p_corr_2 <- create_corr_plot(data = ols_data, vars = vars_period_2)
+
+ggsave(
+  file.path(DIR_FIG, "ols_corr_matrix_2021_2025.png"), p_corr_2,
+  width = 8, height = 8
+)
+
+
+# 6. EUROPA KORT MED ÆNDRING I FORSVARSUDGIFTER (2021-25) ======================
+message("--- Sektion 6: Genererer Europa kort (Ændring 2021-25) ---")
+
+# Henter Kortdata
+world_map_sf <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Samæer data (Bruger adm0_a3 for at fange Norge/Frankrig korrekt)
+map_data_joined <- world_map_sf %>%
+  left_join(ols_data, by = c("adm0_a3" = "iso3c"))
+
+# C. Definér Europa Crop (Uden koordinater)
+europe_crop <- coord_sf(
+  xlim = c(-25, 45),
+  ylim = c(35, 72),
+  expand = FALSE,
+  datum = NA
+)
+
+# Generer Kort
+map_plot <- ggplot(data = map_data_joined) +
+  geom_sf(aes(fill = milex_gdp_post), color = "black", size = 0.2) +
+  # Sekvential farveskala
+  scale_fill_gradient(
+    low = "white",
+    high = "#9d0208",
+    na.value = "#cccccc",
+    limits = c(0, NA),
+    labels = scales::number_format(accuracy = 0.1, decimal.mark = ",")
+  ) +
+  europe_crop +
+  ba_theme() +
+  theme(legend.position = c(0, 0.7), legend.direction = "vertical")
+
+# Gem plot
+ggsave(
+  file.path(DIR_FIG, "map_milex_gdp_post.png"), map_plot,
+  width = 6, height = 5.4, bg = "white"
+)
+
+
+# 7. OUTLIER REPORT ============================================================
+# Kalder funktion fra 00_functions.R til at teste for outliers (1,5 * IQR regel).
+# Hvis der er outliers printes de til konsollen sammen med deres Z-score.
+message("--- Sektion 7: Tjekker for outliers (1,5 * IQR) ---")
+
+for (var in names(VARS_FOR_OLS)) {
+  print_outlier_report(
+    data = ols_data,
+    var_name = !!sym(var),
+    var_label = VARS_FOR_OLS[var]
+  )
+}
+
+
+# 8. SCRIPT FÆRDIG =============================================================
 
 message(paste(
   "\n--- Script 07_ols_eda.R færdigt ---",

@@ -3,13 +3,15 @@
 #   Projekt:      BACHELOR PROJEKT
 #   Script:       02_es_eda.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         05-12-2025
+#   Dato:         07-12-2025
 #   Beskrivelse:  EDA (eksplorativ data analyse) for event-study modellerne, med
 #                 henblik på at sammenligne behandlings- og kontrolgruppen, og
-#                 undersøge deres distribuering.
-#                 1. Genererer deskriptiv statistik tabel.
-#                 2. Generer kombineret histogram + boxplot figurer.
+#                 undersøge deres distribuering:
+#                 1. Laver deskriptiv statistik tabel.
+#                 2. Genererer kombineret histogram + boxplot figurer.
 #                 3. Genererer aggregerede tidsserie figurer.
+#                 4. Sammenligner SIPRI og NATO data og gemmer plot med
+#                    korrelation (Pearson r).
 #
 # ---------------------------------------------------------------------------- #
 
@@ -20,15 +22,19 @@ message("--- Sektion 1: Opsætter arbejdsmiljø ---")
 # Indlæser pakker
 library(conflicted) # håndtering af pakke konflikter
 library(here) # robuste filstier
-library(tidyverse) # data manipulation
-library(gtsummary)
-library(gt)
-library(glue)
-library(psych) # udregn skew
+library(tidyverse) # data manipulation og visualiseringer
+library(gtsummary) # tabel
+library(gt) # formatér tabel
+library(glue) # formatér beskeder
+library(patchwork) # faceted plots
+library(psych) # skew/skævhed
+library(ggridges) # for ridgeline plot
+library(scales) # for plot skalaer
 
 # Håndterer konflikter
 conflict_prefer("filter", "dplyr")
 conflict_prefer("alpha", "ggplot2")
+conflict_prefer("rescale", "scales")
 
 # Input filstier
 DIR_SCRIPTS <- here("scripts")
@@ -70,12 +76,16 @@ MANUAL_BINWIDTHS <- list("milex_gdp" = 0.25, "milex_usd_log" = 1)
 
 # Histogram + Boxplot captions
 MANUAL_CAPTIONS <- list(
-  "milex_gdp" = "Den eneste outlier er Sydkorea (KOR) 2020, med en Z-score på 2,19."
+  "milex_gdp" = "Z-scores: Sydkorea 2020 (2,19)."
 )
 
 
 # 2. DATAFORBEREDELSE ==========================================================
 message("--- Sektion 2: Indlæser og forbereder data ---")
+
+# Indlæser master_panel fra 01_data_prep.R, for SIPRI vs. NATO data
+# sammenligning, og for ridgeline plot.
+master_panel <- readRDS(file.path(DIR_DATA, "master_panel.rds"))
 
 # Indlæser event-study panel fra 01_data_prep.R
 es_panel <- readRDS(ES_PANEL) %>%
@@ -136,7 +146,7 @@ sum_stat_table <- pre_panel %>%
       mutate(
         label = case_when(
           label == "Mean (SD)" ~ "Gns. (SD)",
-          str_detect(label, "Min") ~ "Min.–maks. (skævhed)",
+          str_detect(label, "Min") ~ "Min–maks. (skævhed)",
           TRUE ~ label
         ),
         smd_formatted = ifelse(label == "Gns. (SD)", smd_formatted, "")
@@ -196,13 +206,13 @@ create_distribution_plot <- function(
   # Udregn optimal (unbiased) bin width hvis manuel bin width ikke er angivet
   if (!is.null(manual_binwidth)) {
     final_bw <- manual_binwidth
-    message(glue::glue(">> '{var_str}': Manuel binwidth {final_bw}"))
+    message(glue(">> '{var_str}': Manuel binwidth {final_bw}"))
   } else {
     calc_bw <- function(x) 2 * IQR(x, na.rm = TRUE) / (length(na.omit(x))^(1 / 3))
     treat_bw <- calc_bw(data %>% filter(group == "Behandlet") %>% pull({{ var_enquo }}))
     cntrl_bw <- calc_bw(data %>% filter(group == "Kontrol") %>% pull({{ var_enquo }}))
     final_bw <- mean(c(treat_bw, cntrl_bw), na.rm = TRUE)
-    message(glue::glue(">> '{var_str}': Beregnet unbiased binwidth {round(final_bw, 3)}"))
+    message(glue(">> '{var_str}': Beregnet unbiased binwidth {round(final_bw, 3)}"))
   }
 
   # Identificer outliers
@@ -245,13 +255,11 @@ create_distribution_plot <- function(
       filter(group == "Behandlet"),
     aes(x = {{ var_enquo }}, fill = group)
   ) +
-    geom_boxplot(width = 0.5) +
-    geom_text_repel(
+    geom_boxplot(width = 0.5, outlier.shape = NA) +
+    geom_text(
       data = filter(outliers, group == "Behandlet"),
-      aes(x = {{ var_enquo }}, y = 0, label = iso3c),
+      aes(x = {{ var_enquo }}, y = 0.15, label = iso3c),
       size = 3.5,
-      nudge_y = 0.25,
-      direction = "x",
       family = "IBM Plex Serif"
     ) +
     common_theme +
@@ -278,13 +286,11 @@ create_distribution_plot <- function(
 
   # Kontrol boxplot
   p_cb <- ggplot(data %>% filter(group == "Kontrol"), aes(x = {{ var_enquo }}, fill = group)) +
-    geom_boxplot(width = 0.5) +
-    geom_text_repel(
+    geom_boxplot(width = 0.5, outlier.shape = NA) +
+    geom_text(
       data = filter(outliers, group == "Kontrol"),
-      aes(x = {{ var_enquo }}, y = 0, label = iso3c),
+      aes(x = {{ var_enquo }}, y = 0.15, label = iso3c),
       size = 3.5,
-      nudge_x = 0.05,
-      direction = "x",
       family = "IBM Plex Serif"
     ) +
     common_theme +
@@ -296,8 +302,8 @@ create_distribution_plot <- function(
   final_plot <- final_plot & coord_cartesian(xlim = global_limits) & x_scale
   if (!is.null(output_dir)) {
     ggsave(
-      file.path(output_dir, glue::glue("dist_{var_str}.png")), final_plot,
-      width = 8, height = 6
+      file.path(output_dir, glue("dist_{var_str}.png")), final_plot,
+      width = 6, height = 4.5
     )
   }
 
@@ -327,7 +333,7 @@ save_trend_plot <- function(y_var, y_axis_label) {
     agg_data,
     aes(x = year, y = .data[[y_var]], color = group, group = group)
   ) +
-    geom_line() +
+    geom_line(linewidth = 1) +
     geom_vline(
       xintercept = TREAT_YEAR - 1,
       linetype = "dashed",
@@ -340,7 +346,7 @@ save_trend_plot <- function(y_var, y_axis_label) {
 
   ggsave(
     here(DIR_FIG, glue("agg_ts_{y_var}.png")), ts_plot,
-    width = 8, height = 6
+    width = 6, height = 4.5
   )
 }
 
@@ -371,7 +377,88 @@ for (var in names(VARS_FOR_EDA)) {
 }
 
 
-# 7. SCRIPT FÆRDIG =============================================================
+# 7. SAMMENLIGNING AF SIPRI OG NATO DATA =======================================
+# Sammenligner SIPRI (milex_gdp) og NATO (milex_gdp_nato) for at vurdere om NATO
+# data kan bruges i OLS-modellerne senere hen.
+message("--- Sektion 7: Sammenligner SIPRI og NATO data ---")
+
+df_val <- master_panel %>%
+  filter(group == "Behandlet", year >= 2014 & year <= 2025)
+
+# Beregn korrelation (ekskl. 2025, da SIPRI mangler det år)
+r_val <- cor(
+  df_val$milex_gdp[df_val$year < 2025],
+  df_val$milex_gdp_nato[df_val$year < 2025],
+  use = "complete.obs"
+)
+r_text <- number(r_val, accuracy = 0.001, decimal.mark = ",")
+
+# Aggreger data til plot
+plot_val <- df_val %>%
+  group_by(year) %>%
+  summarize(
+    SIPRI = mean(milex_gdp, na.rm = TRUE),
+    NATO  = mean(milex_gdp_nato, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = c(SIPRI, NATO), names_to = "Kilde", values_to = "pct") %>%
+  filter(!is.na(pct))
+
+# Generer Plot
+p_validation <- ggplot(plot_val, aes(x = year, y = pct, color = Kilde, linetype = Kilde)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c("SIPRI" = "grey40", "NATO" = "black")) +
+  scale_linetype_manual(values = c("SIPRI" = "solid", "NATO" = "solid")) +
+  scale_x_continuous(breaks = 2014:2025) +
+  scale_y_continuous(labels = number_format(accuracy = 0.1, decimal.mark = ",")) +
+  # Annoter korrelation
+  annotate(
+    "text",
+    x = 2016, y = max(plot_val$pct),
+    label = glue("2014-24 korrelation (Pearson r) = {r_text}"),
+    hjust = 0, vjust = 11, family = "IBM Plex Serif", size = 11 / .pt, color = "black"
+  ) +
+  labs(
+    y = "Forsvarsudgifter (% BNP)",
+    x = NULL,
+    color = NULL,
+    linetype = NULL,
+    caption = "Sammenligning af behandlingsgruppens årlige gennemsnit på tværs af datakilder."
+  ) +
+  ba_theme()
+
+ggsave(
+  file.path(DIR_FIG, "comparison_sipri_nato.png"), p_validation,
+  width = 6, height = 4.5
+)
+
+
+# 8 RIDGELINE PLOT (NATO DATA) =================================================
+message("--- Sektion 8: Genererer Ridgeline plot ---")
+p_ridgeline <- master_panel %>%
+  filter(group == "Behandlet", year >= 2014 & year <= 2025) %>%
+  mutate(year_f = factor(year, levels = rev(sort(unique(year))))) %>%
+  drop_na(milex_gdp_nato) %>%
+  ggplot(aes(x = milex_gdp_nato, y = year_f, fill = after_stat(x))) +
+  ggridges::geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  geom_vline(xintercept = 2.0, linetype = "dashed", color = "black") +
+  scale_fill_gradientn(
+    colors = c("#ffba08", "#f48c06", "#dc2f02", "#9d0208", "#370617", "black"),
+    values = rescale(c(0, 1, 2, 3, 5), from = c(0, 5)),
+    limits = c(0, 5)
+  ) +
+  scale_x_continuous(
+    breaks = seq(0, 5, by = 1),
+    limits = c(0, 5)
+  ) +
+  coord_cartesian(clip = "off") +
+  ba_theme() +
+  theme(legend.position = "none", plot.margin = margin(t = 1)) +
+  labs(x = "Forsvarsudgifter (% BNP)", y = NULL)
+
+ggsave(file.path(DIR_FIG, "milex_gdp_nato_ridgeline.png"), p_ridgeline, width = 6, height = 4.5)
+
+
+# 9. SCRIPT FÆRDIG =============================================================
 
 message(paste(
   "\n--- Script 02_es_eda.R færdigt ---",

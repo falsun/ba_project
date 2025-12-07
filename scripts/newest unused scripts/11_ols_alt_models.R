@@ -1,9 +1,9 @@
 # ---------------------------------------------------------------------------- #
 #
 #   Projekt:      BACHELOR PROJEKT
-#   Script:       08_ols_robustness.R
+#   Script:       11_ols_alt_models.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         06-12-2025
+#   Dato:         07-12-2025
 #   Beskrivelse:  Estimerer alternative OLS modeller (robusthed):
 #                 1. Tester forskellige afstandsmål (afstand til Rusland og
 #                    afstand til konfliktzone).
@@ -15,13 +15,12 @@
 message("--- Sektion 1: Opsætter arbejdsmiljø ---")
 
 # Indlæser pakker
-library(conflicted)
-library(here)
-library(tidyverse)
-library(modelsummary)
-library(gt)
-library(fixest)
-library(glue)
+library(conflicted) # håndtering af konflikter
+library(here) # robuste filstier
+library(tidyverse) # data manipulation
+library(modelsummary) # regressionstabeller
+library(gt) # tabelformatering
+library(fixest) # robuste standardfejl (feols)
 
 # Håndterer konflikter
 conflict_prefer("filter", "dplyr")
@@ -41,7 +40,7 @@ source(file.path(DIR_SCRIPTS, "00_functions.R"))
 # Sætter komma som decimal-tegn
 options(OutDec = ",")
 
-# Indlæser Data
+# Indlæser data
 ols_data <- readRDS(DIR_DATA)
 
 
@@ -72,9 +71,9 @@ m_conf <- feols(
 # Regressionstabel
 tbl_dist <- modelsummary(
   list(
-    "Strategisk Rival" = m_enemy,
-    "Konfliktzone"     = m_conf,
-    "Rusland"          = m_rus
+    "1" = m_enemy,
+    "2" = m_conf,
+    "3" = m_rus
   ),
   output = "gt",
   stars = c("*" = 0.05, "**" = 0.01, "***" = 0.001),
@@ -142,12 +141,12 @@ m_post <- feols(
 # Regressionstabel
 tbl_alt <- modelsummary(
   list(
-    "BNP"                 = m_gdp,
-    "BNP pr. indbygger"   = m_cap,
-    "Vækst"               = m_growth,
-    "Gæld"                = m_debt,
-    "Amerikanske tropper" = m_troops,
-    "Post-Kommunist"      = m_post
+    "1" = m_gdp,
+    "2" = m_cap,
+    "3" = m_growth,
+    "4" = m_debt,
+    "5" = m_troops,
+    "6" = m_post
   ),
   output = "gt",
   stars = c("*" = 0.05, "**" = 0.01, "***" = 0.001),
@@ -157,7 +156,7 @@ tbl_alt <- modelsummary(
     "nato_gap_2021"      = "Afstand til NATO's 2%-mål (% BNP), 2021",
     "gdp_2021_log"       = "BNP (log USD), 2021",
     "gdp_cap_2021_log"   = "BNP pr. indbygger (log PPP), 2021",
-    "gdp_growth_post"    = "BNP-vækst, 2021–25",
+    "gdp_growth_post"    = "BNP-vækst (%), 2021-25",
     "debt_gdp_2021_log"  = "Offentlig gæld (log % BNP), 2021",
     "us_troops_2021_log" = "Antal Amerikanske Tropper (log), 2021",
     "post_com"           = "Post-kommunistisk stat"
@@ -174,6 +173,6 @@ tbl_alt <- modelsummary(
 
 # 4. SCRIPT FÆRDIG =============================================================
 message(paste(
-  "\n--- Script 12_ols_alt_models.R færdigt ---",
+  "\n--- Script 11_ols_alt_models.R færdigt ---",
   "\nAlle tabeller er gemt i:", DIR_TAB
 ))

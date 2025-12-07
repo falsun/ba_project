@@ -3,14 +3,13 @@
 #   Projekt:      BACHELOR PROJEKT
 #   Script:       09_ols_models.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         06-12-2025
+#   Dato:         07-12-2025
 #   Beskrivelse:  Estimerer OLS modellerne:
 #                 1. Estimerer OLS modeller for hver afhængig variabel *
-#                    tidsperiode kombination.
-#                 2. Kører alternative versioner af forsvarsudgifter (% BNP)
-#                    2021-25 modellen.
-#                 3. Gemmer alle regressionsmodeller som tabeller.
-#                 4. Plotter og gemmer bivariate sammenhæng mellem afstand til
+#                    tidsperiode kombination og gemmer modellerne som tabeller.
+#                 2. Kører Z-test for at teste om forskellen mellem
+#                    koefficienterne er statistisk signifikant.
+#                 3. Plotter og gemmer bivariate sammenhæng mellem afstand til
 #                    strategisk rival (log km) og forsvarsudgifter.
 #
 # ---------------------------------------------------------------------------- #
@@ -20,18 +19,17 @@
 message("--- Sektion 1: Opsætter arbejdsmiljø ---")
 
 # Indlæser pakker
-library(conflicted) # håndterer konfilkter
+library(conflicted) # håndterer konflikter
 library(here) # robuste filstier
-library(tidyverse) # data manipulation og figurer
+library(tidyverse) # data manipulation og visualiseriger
 library(modelsummary) # regressionstabeller
-library(fixest) # Robust SEs
-library(gt)
-library(gtsummary)
-library(glue)
-library(broom)
-library(scales)
+library(fixest) # robuste standardfejl
+library(gt) # tabelformatering
+library(gtsummary) # p-værdier i tabeller
+library(glue) # formatér beskeder, labels og formler
+library(scales) # formatering af plot akser
 
-# håndterer konflikter
+# Håndterer konflikter
 conflict_prefer("filter", "dplyr")
 conflict_prefer("lag", "dplyr")
 
@@ -41,7 +39,7 @@ DIR_DATA <- here("data", "_processed", "ols_data.rds")
 
 # Output filstier
 DIR_TAB <- here("_output", "_tables", "_ols_models")
-DIR_FIG <- here("_output", "_figures", "_ols_plots")
+DIR_FIG <- here("_output", "_figures", "_ols_models")
 if (!dir.exists(DIR_TAB)) dir.create(DIR_TAB, recursive = TRUE)
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
@@ -96,13 +94,13 @@ fit_ols_models <- function(data, dv, gap_var, gdp_var) {
   f7 <- as.formula(glue("{dv} ~ border_rus + dist_enemy_log + {gap_var} + {gdp_var}"))
 
   list(
-    "(1) Trussel (binær)"            = feols(f1, data = data, vcov = "HC3"),
-    "(2) Trussel (gradient)"         = feols(f2, data = data, vcov = "HC3"),
-    "(3) NATO"                       = feols(f3, data = data, vcov = "HC3"),
-    "(4) Økonomi"                    = feols(f4, data = data, vcov = "HC3"),
-    "(5) Trussel (binær) og NATO"    = feols(f5, data = data, vcov = "HC3"),
-    "(6) Trussel (gradient) og NATO" = feols(f6, data = data, vcov = "HC3"),
-    "(7) Trussel, NATO og økonomi"   = feols(f7, data = data, vcov = "HC3")
+    "1" = feols(f1, data = data, vcov = "HC3"),
+    "2" = feols(f2, data = data, vcov = "HC3"),
+    "3" = feols(f3, data = data, vcov = "HC3"),
+    "4" = feols(f4, data = data, vcov = "HC3"),
+    "5" = feols(f5, data = data, vcov = "HC3"),
+    "6" = feols(f6, data = data, vcov = "HC3"),
+    "7" = feols(f7, data = data, vcov = "HC3")
   )
 }
 
@@ -123,7 +121,7 @@ save_ols_table <- function(models, dv) {
   # Gem tabel
   file_name <- glue("ols_{dv}.html")
   gtsave(tab, filename = file.path(DIR_TAB, file_name))
-  message(glue("Saved table: {file_name}"))
+  message(glue("Tabel gemt for: {file_name}"))
 }
 
 
@@ -172,8 +170,8 @@ save_ols_table(models_post_usd, "milex_usd_post")
 message("--- Sektion 5: Udfører Z-test for koefficient sammenligning ---")
 
 # Henter de specifikke modeller
-mod_pre <- models_pre_gdp[["(7) Trussel, NATO og økonomi"]]
-mod_post <- models_post_gdp[["(7) Trussel, NATO og økonomi"]]
+mod_pre <- models_pre_gdp[["7"]]
+mod_post <- models_post_gdp[["7"]]
 
 ## 4.1. Z-TEST HJÆLPEFUNKTION 1 ------------------------------------------------
 # BETA og standardfejl fra fixest objekter
@@ -255,7 +253,7 @@ plot_bivariate <- function(data, y_var, y_label, file_name) {
       labels = number_format(accuracy = 0.01, decimal.mark = ",")
     ) +
     labs(
-      x = "Afstand til strategisk rival (log km)",
+      x = "Afstand til strategisk rival (km)",
       y = y_label,
       caption = "Stater markeret med fed deler grænse med Rusland."
     ) +
@@ -284,7 +282,7 @@ plot_bivariate(
 
 # 6. SCRIPT FÆRDIG =============================================================
 message(paste(
-  "\n--- Script 08_ols_prelims.R færdigt ---",
+  "\n--- Script 09_ols_models.R færdigt ---",
   "\nAlle tabeller er gemt i:", DIR_TAB,
   "\nAlle figurer er gemt i:", DIR_FIG
 ))

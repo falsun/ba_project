@@ -2,10 +2,11 @@
 #   Projekt:      BACHELOR PROJEKT
 #   Script:       10_ols_loo.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         06-12-2025
+#   Dato:         07-12-2025
 #   Beskrivelse:  Kører Leave-One-Out test (Jackknife) på den fulde
-#                 "forsvarsudgifter (% BNP) 2021-25" OLS og gemmer resultater i
-#                 et faceted plot.
+#                 "forsvarsudgifter (% BNP) 2021-25" OLS model og gemmer
+#                 resultaterne i et faceted plot.
+#
 # ---------------------------------------------------------------------------- #
 
 
@@ -13,21 +14,26 @@
 message("--- Sektion 1: Opsætter arbejdsmiljø ---")
 
 # pakker
+library(conflicted) # håndtering af pakkekonflikter
 library(here) # robuste filstier
-library(tidyverse) # data manipulation og plots
+library(tidyverse) # data manipulation og visualiseringer
 library(fixest) # regressionsmodeller
-library(broom)
-library(scales) # plot skalaer
+library(broom) # tidy model output
+library(scales) # formatering af plot akser
 
-# Funktioner og brugerdefinerede temaer
-source(here("scripts", "00_functions.R"))
+# Håndterer konflikter
+conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
 
 # Filstier
 DIR_DATA <- here("data", "_processed", "ols_data.rds")
 DIR_FIG <- here("_output", "_figures", "_ols_plots")
 if (!dir.exists(DIR_FIG)) dir.create(DIR_FIG, recursive = TRUE)
 
-# Data
+# Funktioner og brugerdefinerede temaer
+source(here("scripts", "00_functions.R"))
+
+# Indlæser data
 ols_data <- readRDS(DIR_DATA)
 
 
@@ -39,14 +45,14 @@ TARGET_FORMULA <- milex_gdp_post ~ dist_enemy_log + border_rus + nato_gap_2021 +
 # Variabler
 VARIABLE_LABELS <- c(
   "dist_enemy_log" = "Afstand til strategisk rival (log km)",
-  "border_rus"     = "Fælles grænse med strategisk rival",
+  "border_rus"     = "Delt grænse med Rusland",
   "nato_gap_2021"  = "Afstand til NATO's 2%-mål (% BNP), 2021",
   "gdp_2021_log"   = "BNP (log USD), 2021"
 )
 
 # Rækkefølge i plot
 PLOT_ORDER <- c(
-  "Fælles grænse med strategisk rival",
+  "Delt grænse med Rusland",
   "Afstand til strategisk rival (log km)",
   "Afstand til NATO's 2%-mål (% BNP), 2021",
   "BNP (log USD), 2021"
@@ -124,10 +130,10 @@ p_loo <- ggplot(plot_df, aes(x = dropped_unit, y = estimate)) +
   )
 
 # Gem
-ggsave(file.path(DIR_FIG, "ols_loo_plot.png"), p_loo, width = 8, height = 9)
+ggsave(file.path(DIR_FIG, "ols_loo_plot_milex_gdp_post.png"), p_loo, width = 8, height = 9)
 
 # 4. SCRIPT FÆRDIG =============================================================
 message(paste(
   "\n--- Script 10_ols_loo.R færdigt ---",
-  "\n ols_loo_stability.png gemt i:", DIR_FIG
+  "\n ols_loo_plot_milex_gdp.png gemt i:", DIR_FIG
 ))

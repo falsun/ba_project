@@ -3,9 +3,9 @@
 #   Projekt:      BACHELOR PROJEKT
 #   Script:       00_functions.R
 #   Forfatter:    Frederik Bender Bøeck-Nielsen
-#   Dato:         05-12-2025
-#   Beskrivelse:  Indeholder brugerdefinerede temaer (til figurer og tabeller),
-#                 samt enkelte funktioner der bruges mere end én gang.
+#   Dato:         07-12-2025
+#   Beskrivelse:  Indeholder brugerdefineret farvepalet, ggplot2 tema, gt tabel
+#                 tema og én enkelt funktion til at identificere outliers.
 #
 # ---------------------------------------------------------------------------- #
 
@@ -13,12 +13,10 @@
 # 1. OPSÆTNING AF ARBEJDSMILJØ =================================================
 
 # Indlæs pakker
-library(tidyverse)
-library(ggrepel)
-library(patchwork)
-library(ggridges)
-library(hrbrthemes)
-library(scales)
+library(tidyverse) # data manipulation
+library(hrbrthemes) # ggplot2 tema
+library(gt) # gt tabel tema
+library(glue) # formatér beskeder
 
 
 # 2. BRUGERDEFINEREDE TEMAER ===================================================
@@ -32,25 +30,16 @@ project_qual_colors_map <- c(
 )
 
 scale_color_project_qual <- function(...) {
-  scale_color_manual(
-    values = project_qual_colors_map,
-    ...
-  )
+  scale_color_manual(values = project_qual_colors_map, ...)
 }
 
 scale_fill_project_qual <- function(...) {
-  scale_fill_manual(
-    values = project_qual_colors_map,
-    ...
-  )
+  scale_fill_manual(values = project_qual_colors_map, ...)
 }
 
-## 2.2. PLOT TEMA --------------------------------------------------------------
+## 2.2. GGPLOT2 TEMA -----------------------------------------------------------
 ba_theme <- function(...) {
-  hrbrthemes::theme_ipsum(
-    base_family = "IBM Plex Serif",
-    ...
-  ) +
+  theme_ipsum(base_family = "IBM Plex Serif", ...) +
     theme(
       legend.position      = c(0.02, 0.98),
       legend.justification = c("left", "top"),
@@ -69,25 +58,6 @@ ba_theme <- function(...) {
     )
 }
 
-#' Custom X-axis for Bachelor Project (Danish formatting)
-#' Defaults to comma decimal, dot thousands, and allows extra arguments like limits
-scale_x_dk <- function(accuracy = NULL, ...) {
-  scale_x_continuous(
-    labels = scales::comma_format(big.mark = ".", decimal.mark = ",", accuracy = accuracy),
-    ...
-  )
-}
-
-#' Custom Y-axis (Danish formatting)
-#' Allows optional control over accuracy (decimals) per plot
-scale_y_dk <- function(accuracy = NULL, ...) {
-  scale_y_continuous(
-    labels = scales::comma_format(big.mark = ".", decimal.mark = ",", accuracy = accuracy),
-    ...
-  )
-}
-
-
 ## 2.3. GT TABEL TEMA ----------------------------------------------------------
 ba_theme_gt <- function(gt_object) {
   gt_object %>%
@@ -104,6 +74,8 @@ ba_theme_gt <- function(gt_object) {
 print_outlier_report <- function(data, var_name, var_label) {
   var_name_enquo <- enquo(var_name)
 
+  # sørger for at funktionen både fungerer for at én samlet gruppe observationer,
+  # samt observationer fordelt på grupper (behandlet og kontrol)
   if ("group" %in% names(data)) {
     data_calc <- data %>% group_by(group)
   } else {
@@ -112,11 +84,11 @@ print_outlier_report <- function(data, var_name, var_label) {
 
   outlier_data <- data_calc %>%
     mutate(
-      # 1,5 * IQR
+      # 1,5 * IQR til at identificere outliers
       iqr = IQR({{ var_name_enquo }}, na.rm = TRUE),
       upper_bound = quantile({{ var_name_enquo }}, 0.75, na.rm = TRUE) + 1.5 * iqr,
       lower_bound = quantile({{ var_name_enquo }}, 0.25, na.rm = TRUE) - 1.5 * iqr,
-      # Calculate Z-Score
+      # Udregn Z-Score
       mean_val = mean({{ var_name_enquo }}, na.rm = TRUE),
       sd_val = sd({{ var_name_enquo }}, na.rm = TRUE),
       z_score = ({{ var_name_enquo }} - mean_val) / sd_val,
@@ -134,86 +106,9 @@ print_outlier_report <- function(data, var_name, var_label) {
     arrange(desc(value))
   # Print til konsol
   if (nrow(outlier_data) > 0) {
-    message(glue::glue("\nOutliers (1,5 * IQR) for {var_label}:"))
+    message(glue("\nOutliers (1,5 * IQR) for {var_label}:"))
     print(as.data.frame(outlier_data))
   } else {
-    message(glue::glue("\nIngen outliers for {var_label}."))
+    message(glue("\nIngen outliers for {var_label}."))
   }
-}
-
-
-# 4. P-VÆRDI FORMATERING =======================================================
-format_p_val <- function(x) {
-  sapply(x, function(val) {
-    if (is.na(val)) {
-      return(NA)
-    }
-    if (val < 0.001) {
-      return("<0,001")
-    }
-    formatC(val, digits = 3, format = "f")
-  })
-}
-
-
-# 5. DUMBBELL ===============================================================
-#' Creates a dumbbell plot showing change between two years.
-#'
-#' @param data A dataframe containing panel data.
-#' @param var_name The variable to plot on the x-axis (unquoted symbol).
-#' @param var_label A label for the x-axis.
-#' @param start_year The starting year for the dumbbell.
-#' @param end_year The ending year for the dumbbell.
-#' @param output_dir The directory to save the plot in.
-#' @return A ggplot object.
-#'
-create_dumbbell_plot <- function(data, var_name, var_label, start_year, end_year, output_dir) {
-  var_name_enquo <- enquo(var_name)
-  current_var_name <- quo_name(var_name_enquo)
-  base_font <- "IBM Plex Serif"
-
-  plot_data <- data %>%
-    filter(group == "Behandlet", year %in% c(start_year, end_year)) %>%
-    select(iso3c, year, {{ var_name_enquo }})
-
-  wide_data <- plot_data %>%
-    pivot_wider(
-      names_from = year,
-      values_from = {{ var_name_enquo }},
-      names_prefix = "year_"
-    ) %>%
-    mutate(
-      iso3c = fct_reorder(iso3c, .data[[paste0("year_", end_year)]]),
-      point_type_start = factor(as.character(start_year), levels = c(as.character(start_year), as.character(end_year))),
-      point_type_end = factor(as.character(end_year), levels = c(as.character(start_year), as.character(end_year)))
-    )
-
-  color_values <- setNames(
-    c("grey50", project_colors["Behandlet"]),
-    c(as.character(start_year), as.character(end_year))
-  )
-
-  dumbbell_plot <- ggplot(wide_data, aes(y = iso3c)) +
-    geom_segment(aes(x = .data[[paste0("year_", start_year)]], xend = .data[[paste0("year_", end_year)]], yend = iso3c), color = "grey70", linewidth = 0.8) +
-    geom_point(aes(x = .data[[paste0("year_", start_year)]], color = point_type_start), size = 3) +
-    geom_point(aes(x = .data[[paste0("year_", end_year)]], color = point_type_end), size = 3) +
-    geom_vline(xintercept = 2, linetype = "dashed", color = "black", linewidth = 0.8) +
-    scale_fill_project_qual() +
-    ba_theme() +
-    theme(
-      legend.position = "top",
-      legend.title = element_text(face = "bold"),
-      plot.title = element_text(face = "bold", size = 16),
-      plot.subtitle = element_text(size = 12)
-    ) +
-    labs(
-      title = glue::glue("{var_label} {start_year} vs. {end_year}"),
-      x = var_label,
-      y = NULL
-    )
-
-  file_name <- glue::glue("{current_var_name}_dumbbell_treatment_{start_year}_{end_year}.png")
-  ggsave(file.path(output_dir, file_name), dumbbell_plot, width = 8, height = 10, bg = "white")
-
-  return(dumbbell_plot)
 }
