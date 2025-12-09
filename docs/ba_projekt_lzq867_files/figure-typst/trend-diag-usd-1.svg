@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='425.20pt' height='327.40pt' viewBox='0 0 425.20 327.40'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+    .svglite g.glyphgroup path {
+      fill: inherit;
+      stroke: none;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA='>
+    <rect x='0.00' y='0.00' width='425.20' height='327.40' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA=)'>
+<rect x='0.00' y='0.00' width='425.20' height='327.40' style='stroke-width: 1.12; stroke: none; fill: #FFFFFF;' />
+</g>
+<defs>
+  <clipPath id='cpMzQuNDh8NDI1LjIwfDAuMDB8Mjk0LjA3'>
+    <rect x='34.48' y='0.00' width='390.71' height='294.07' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMzQuNDh8NDI1LjIwfDAuMDB8Mjk0LjA3)'>
+<line x1='300.88' y1='294.07' x2='300.88' y2='0.00' style='stroke-width: 1.12; stroke: #666666; stroke-dasharray: 5.95,5.95; stroke-linecap: butt;' />
+<polyline points='52.24,280.71 87.76,266.05 123.28,247.04 158.80,225.41 194.32,200.64 229.84,169.32 265.36,150.52 300.88,145.81 336.40,129.49 371.92,76.14 407.44,13.37 ' style='stroke-width: 2.13; stroke: #0077B6; stroke-linecap: butt;' />
+<polyline points='52.24,280.71 87.76,259.77 123.28,237.60 158.80,216.32 194.32,203.79 229.84,173.86 265.36,150.59 300.88,145.81 336.40,158.52 371.92,133.84 407.44,103.80 ' style='stroke-width: 2.13; stroke: #F48C06; stroke-linecap: butt;' />
+</g>
+<g clip-path='url(#cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA=)'>
+<text x='29.33' y='254.03' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='29.33px' lengthAdjust='spacingAndGlyphs'>22,90</text>
+<text x='29.33' y='202.01' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='29.33px' lengthAdjust='spacingAndGlyphs'>23,00</text>
+<text x='29.33' y='149.99' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='29.33px' lengthAdjust='spacingAndGlyphs'>23,10</text>
+<text x='29.33' y='97.97' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='29.33px' lengthAdjust='spacingAndGlyphs'>23,20</text>
+<text x='29.33' y='45.95' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='29.33px' lengthAdjust='spacingAndGlyphs'>23,30</text>
+<text x='52.24' y='306.91' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='26.38px' lengthAdjust='spacingAndGlyphs'>2014</text>
+<text x='123.28' y='306.91' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='26.38px' lengthAdjust='spacingAndGlyphs'>2016</text>
+<text x='194.32' y='306.91' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='26.38px' lengthAdjust='spacingAndGlyphs'>2018</text>
+<text x='265.36' y='306.91' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='26.38px' lengthAdjust='spacingAndGlyphs'>2020</text>
+<text x='336.40' y='306.91' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='26.38px' lengthAdjust='spacingAndGlyphs'>2022</text>
+<text x='407.44' y='306.91' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='26.38px' lengthAdjust='spacingAndGlyphs'>2024</text>
+<line x1='49.75' y1='20.25' x2='63.58' y2='20.25' style='stroke-width: 2.13; stroke: #0077B6; stroke-linecap: butt;' />
+<line x1='49.75' y1='37.53' x2='63.58' y2='37.53' style='stroke-width: 2.13; stroke: #F48C06; stroke-linecap: butt;' />
+<text x='71.04' y='24.09' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='52.92px' lengthAdjust='spacingAndGlyphs'>Behandlet</text>
+<text x='71.04' y='41.37' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='39.00px' lengthAdjust='spacingAndGlyphs'>Kontrol</text>
+<text x='425.20' y='325.49' text-anchor='end' style='font-size: 9.00px; font-style: italic; font-family: "IBM Plex Serif";' textLength='296.98px' lengthAdjust='spacingAndGlyphs'>Behandlet linje er konstrueret som: Kontrolgruppe + Event-study koefficienter.</text>
+</g>
+</g>
+</svg>

@@ -17,6 +17,7 @@ library(tidyverse) # data manipulation
 library(hrbrthemes) # ggplot2 tema
 library(gt) # gt tabel tema
 library(glue) # formatér beskeder
+library(scales) # plot skalaer
 
 
 # 2. BRUGERDEFINEREDE TEMAER ===================================================
@@ -57,6 +58,7 @@ ba_theme <- function(...) {
       plot.margin          = margin(t = 0, r = 0, b = 0, l = 0)
     )
 }
+
 
 ## 2.3. GT TABEL TEMA ----------------------------------------------------------
 ba_theme_gt <- function(gt_object) {

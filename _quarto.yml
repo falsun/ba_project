@@ -3,13 +3,6 @@
 # ===================================================================
 
 # -- UNIVERSAL SETTINGS --
-author:
-  - name: Frederik Bender Bøeck-Nielsen
-    email: lzq867@alumni.ku.dk
-    affiliation:
-    - name: Department of Political Science - University of Copenhagen
-date: last-modified
-date-format: D. MMMM, YYYY
 lang: da
 
 # -- REFERENCES --
@@ -19,10 +12,7 @@ citeproc: true
 link-citations: true
 
 # -- TABLE OF CONTENTS --
-toc: true
-toc-depth: 3
-toc-title: Contents
-toc-indent: 1.6em
+toc: false
 
 # -- SECTIONS --
 number-sections: true
@@ -33,7 +23,6 @@ number-depth: 3
 papersize: a4
 justify: true
 hyphenate: true
-linestretch: 1.45
 
 # -- CHUNK OPTIONS --
 execute:
@@ -65,5 +54,6 @@ format:
     section-numbering: 1.1.1.
     include-in-header:
       - text: |
+          #set par(leading: 0.75em, spacing: 1.5em)
           #show link: set text(fill: rgb(0, 0, 255))
           #show ref: set text(fill: rgb(0, 0, 255))

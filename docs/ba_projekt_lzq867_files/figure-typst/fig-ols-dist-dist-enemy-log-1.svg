@@ -1,0 +1,106 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='425.20pt' height='327.40pt' viewBox='0 0 425.20 327.40'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+    .svglite g.glyphgroup path {
+      fill: inherit;
+      stroke: none;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA='>
+    <rect x='0.00' y='0.00' width='425.20' height='327.40' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA=)'>
+<rect x='0.00' y='-0.000000000000057' width='425.20' height='327.40' style='stroke-width: 1.07; stroke: #FFFFFF; fill: #FFFFFF;' />
+</g>
+<defs>
+  <clipPath id='cpNDQuNDN8NDE5LjcyfDUuNDh8Mjc3LjU0'>
+    <rect x='44.43' y='5.48' width='375.29' height='272.06' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpNDQuNDN8NDE5LjcyfDUuNDh8Mjc3LjU0)'>
+</g>
+<g clip-path='url(#cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA=)'>
+</g>
+<defs>
+  <clipPath id='cpNS40OHw0MTkuNzJ8NS40OHwyNDcuMzE='>
+    <rect x='5.48' y='5.48' width='414.24' height='241.83' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpNS40OHw0MTkuNzJ8NS40OHwyNDcuMzE=)'>
+<rect x='5.48' y='5.48' width='414.24' height='241.83' style='stroke-width: 1.12; stroke: none; fill: #FFFFFF;' />
+</g>
+<g clip-path='url(#cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA=)'>
+</g>
+<defs>
+  <clipPath id='cpNS40OHw0MTkuNzJ8MjQ3LjMxfDMyMS45Mg=='>
+    <rect x='5.48' y='247.31' width='414.24' height='74.61' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpNS40OHw0MTkuNzJ8MjQ3LjMxfDMyMS45Mg==)'>
+<rect x='5.48' y='247.31' width='414.24' height='74.61' style='stroke-width: 1.12; stroke: none; fill: #FFFFFF;' />
+</g>
+<g clip-path='url(#cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA=)'>
+</g>
+<defs>
+  <clipPath id='cpNDQuNDN8NDE5LjcyfDUuNDh8MjQ3LjMx'>
+    <rect x='44.43' y='5.48' width='375.29' height='241.83' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpNDQuNDN8NDE5LjcyfDUuNDh8MjQ3LjMx)'>
+<rect x='-343.66' y='16.47' width='42.65' height='219.84' style='stroke-width: 1.12; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #666666;' />
+<rect x='-301.01' y='89.75' width='42.65' height='146.56' style='stroke-width: 1.12; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #666666;' />
+<rect x='-258.36' y='199.68' width='42.65' height='36.64' style='stroke-width: 1.12; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #666666;' />
+</g>
+<g clip-path='url(#cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA=)'>
+<text x='39.27' y='240.16' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>0.0</text>
+<text x='39.27' y='194.36' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>2.5</text>
+<text x='39.27' y='148.56' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>5.0</text>
+<text x='39.27' y='102.75' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>7.5</text>
+<text x='39.27' y='56.95' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='22.73px' lengthAdjust='spacingAndGlyphs'>10.0</text>
+<text x='39.27' y='11.15' text-anchor='end' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='22.73px' lengthAdjust='spacingAndGlyphs'>12.5</text>
+<text transform='translate(11.77,5.48) rotate(-90)' text-anchor='end' style='font-size: 9.00px; font-family: "IBM Plex Serif";' textLength='39.17px' lengthAdjust='spacingAndGlyphs'>Frekvens</text>
+</g>
+<defs>
+  <clipPath id='cpNDQuNDN8NDE5LjcyfDI0Ny4zMXwyNzcuNTQ='>
+    <rect x='44.43' y='247.31' width='375.29' height='30.23' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpNDQuNDN8NDE5LjcyfDI0Ny4zMXwyNzcuNTQ=)'>
+<line x1='-287.85' y1='262.42' x2='-260.00' y2='262.42' style='stroke-width: 1.12; stroke: #333333; stroke-linecap: butt;' />
+<line x1='-311.87' y1='262.42' x2='-330.41' y2='262.42' style='stroke-width: 1.12; stroke: #333333; stroke-linecap: butt;' />
+<polygon points='-287.85,276.16 -311.87,276.16 -311.87,248.68 -287.85,248.68 -287.85,276.16 ' style='stroke-width: 1.12; stroke: #333333; stroke-linecap: butt; stroke-linejoin: miter; fill: #666666;' />
+<line x1='-304.82' y1='276.16' x2='-304.82' y2='248.68' style='stroke-width: 2.23; stroke: #333333; stroke-linecap: butt; stroke-linejoin: miter;' />
+<text x='-231.45' y='265.90' text-anchor='middle' style='font-size: 9.96px; font-family: "IBM Plex Serif";' textLength='19.00px' lengthAdjust='spacingAndGlyphs'>LTU</text>
+<text x='-221.16' y='265.90' text-anchor='middle' style='font-size: 9.96px; font-family: "IBM Plex Serif";' textLength='18.12px' lengthAdjust='spacingAndGlyphs'>LVA</text>
+</g>
+<g clip-path='url(#cpMC4wMHw0MjUuMjB8MC4wMHwzMjcuNDA=)'>
+<text x='61.49' y='290.38' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>4,5</text>
+<text x='104.13' y='290.38' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>5,0</text>
+<text x='146.78' y='290.38' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>5,5</text>
+<text x='189.43' y='290.38' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>6,0</text>
+<text x='232.07' y='290.38' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>6,5</text>
+<text x='274.72' y='290.38' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>7,0</text>
+<text x='317.37' y='290.38' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>7,5</text>
+<text x='360.01' y='290.38' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>8,0</text>
+<text x='402.66' y='290.38' text-anchor='middle' style='font-size: 11.00px; font-family: "IBM Plex Serif";' textLength='16.14px' lengthAdjust='spacingAndGlyphs'>8,5</text>
+<text x='419.72' y='301.86' text-anchor='end' style='font-size: 9.00px; font-family: "IBM Plex Serif";' textLength='145.36px' lengthAdjust='spacingAndGlyphs'>Afstand til strategisk rival (log km)</text>
+<text x='419.72' y='320.01' text-anchor='end' style='font-size: 9.00px; font-style: italic; font-family: "IBM Plex Serif";' textLength='164.28px' lengthAdjust='spacingAndGlyphs'>Z-scores: Litauen (-2,89) og Letland (-1,55).</text>
+</g>
+</g>
+</svg>

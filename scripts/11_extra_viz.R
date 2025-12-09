@@ -1,11 +1,15 @@
 # ---------------------------------------------------------------------------- #
+#
 #   Projekt:      BACHELOR PROJEKT
-#   Script:       10_ols_extra_viz.R
+#   Script:       11_extra_viz.R
+#   Forfatter:    Frederik Bender Bøeck-Nielsen
+#   Dato:         08-12-2025
 #   Beskrivelse:  Genererer yderligere visualiseringer for OLS-analysen:
 #                 1. Coefficient Plot (Forest Plot) - Sammenligning 2014/2021
 #                 2. Residual Map - Geografisk fordeling af modelafvigelser
 #                 3. Residual Tabel - Liste over lande rangeret efter residual
 # ---------------------------------------------------------------------------- #
+
 
 # 1. OPSÆTNING =================================================================
 message("--- Sektion 1: Opsætter arbejdsmiljø ---")
@@ -212,7 +216,7 @@ simple_table <- resid_table_data %>%
 
 # 6. SCRIPT FÆRDIG =============================================================
 message(paste(
-  "\n--- Script 08_ols_prelims.R færdigt ---",
+  "\n--- Script 11_extra_viz.R færdigt ---",
   "\nAlle tabeller er gemt i:", DIR_TAB,
   "\nAlle figurer er gemt i:", DIR_FIG
 ))

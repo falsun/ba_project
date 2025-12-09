@@ -1,0 +1,2546 @@
+---
+format: typst
+editor: visual
+#abstract: "bla bla bla"
+---
+
+```{=typst}
+#set page(numbering: none)
+
+#align(center + horizon)[
+  #text(2em, weight: "bold")[Sikkerhedspolitisk opbrud i Europa:]
+  
+  #text(1.5em)[En kvantitativ analyse af forsvarsudgifter]
+  
+  #v(2em)
+  
+  #text(1em)[Af Frederik Bender Bøeck-Nielsen]
+  
+  #text(1em)[Bachelorprojekt, Statskundskab]
+  
+  #text(1em)[07. december 2025]
+]
+```
+{{< pagebreak >}}
+
+```{=typst}
+#set page(numbering: "1")
+#counter(page).update(1)
+#outline(
+title: [Indholdsfortegnelse],
+indent: auto
+)
+```
+{{< pagebreak >}}
+
+```{r}
+#| label: setup
+#| include: false
+
+library(svglite)
+library(chunkhooks)
+library(conflicted)
+library(tidyverse)
+library(hrbrthemes)
+library(here)
+library(tinytable)
+library(patchwork)
+library(psych)
+library(ggridges)
+library(scales)
+library(gtsummary)
+library(gt)
+library(glue)
+library(fixest) # event-study modeller
+library(plm) # CSD og LLC test
+library(broom) # tidy model output
+library(scales)
+library(MASS) # simulering af uniforme konfidensintervaller
+library(moments) # skævhed/skew
+library(ggcorrplot) # korrelationsmatrix
+library(sf) # spatial data
+library(rnaturalearth) # kort plots
+library(rnaturalearthdata) # kort data
+library(car)
+library(lmtest)
+library(ggfortify)
+library(modelsummary)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
+conflict_prefer("alpha", "ggplot2")
+conflict_prefer("rescale", "scales")
+conflict_prefer("select", "dplyr")
+
+hook_figure_unit('cm')
+
+source(here::here("scripts", "00_functions.R"))
+
+# Parameters
+TREAT_YEAR <- 2022
+
+# ES panel
+es_panel <- readRDS(here("data", "_processed", "es_panel.rds")) %>%
+  mutate(group = factor(group, levels = c("Behandlet", "Kontrol")))
+
+# Master panel
+master_panel <- readRDS(here("data", "_processed", "master_panel.rds"))
+
+```
+
+```{r}
+#| label: tbl-theme
+#| include: false
+
+ba_tiny_theme <- function(tt_object) {
+  tt_object %>%
+    # Bold Headers
+    style_tt(i = 0, bold = TRUE) %>%
+    style_tt(i = "notes", fontsize = 0.8) %>%
+    # Borders
+    # Top of the table (above headers) - Thick
+    style_tt(i = 0, line = "t", line_width = 0.05) %>%
+    
+    # Bottom of headers (separating headers from data) - Thin
+    style_tt(i = 0, line = "b", line_width = 0.03) %>%
+    
+    # Bottom of the entire table (before notes) - Thick
+    style_tt(i = nrow(tt_object), line = "b", line_width = 0.05) %>%
+    
+    # Format numbers
+    format_tt(escape = TRUE) %>%
+    format_tt(linebreak = "\n") %>%
+    format_tt(digits = 3, num_mark_dec = ",")
+}
+
+```
+
+```{r}
+#| label: 02_es_eda_prep
+#| include: false
+
+
+# Filter Pre-treatment
+VARS_FOR_EDA <- c(
+  "milex_gdp"      = "Forsvarsudgifter (% BNP)",
+  "milex_usd_log" = "Forsvarsudgifter (log USD)"
+)
+
+pre_panel <- es_panel %>%
+  filter(year < TREAT_YEAR) %>%
+  select(group, iso3c, year, all_of(names(VARS_FOR_EDA)))
+
+# Calculate Averages (for SMD)
+country_avg_df <- pre_panel %>%
+  group_by(group, iso3c) %>%
+  summarise(across(all_of(names(VARS_FOR_EDA)), \(x) mean(x, na.rm = TRUE)), .groups = "drop")
+
+# Aggregate for Time Series
+agg_data <- es_panel %>%
+  group_by(group, year) %>%
+  summarise(
+    milex_gdp = mean(milex_gdp, na.rm = TRUE),
+    milex_usd_log = mean(milex_usd_log, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+```
+
+```{r}
+#| label: 02_es_eda_func
+#| include: false
+
+# --- Sektion 4.1: Helper Function Definition ---
+# We define the function here so we can reuse it in later chunks
+create_distribution_plot <- function(
+  data, var_name, var_label, 
+  manual_breaks = NULL, manual_binwidth = NULL, manual_caption = NULL
+) {
+  var_enquo <- enquo(var_name)
+  var_str <- quo_name(var_enquo)
+  
+  # --- CHANGE START: Define Comma Formatters ---
+  # 1. Standard comma formatter
+  comma_fmt <- scales::label_number(decimal.mark = ",")
+  
+  # 2. Special formatter that prints "0" for zero, but commas for everything else
+  fmt_zero <- function(x) {
+    formatted <- comma_fmt(x)
+    ifelse(x == 0, "0", formatted)
+  }
+  # --- CHANGE END ---
+
+  # Scales
+  if (!is.null(manual_breaks)) {
+    global_limits <- range(manual_breaks)
+    # Use fmt_zero for milex_gdp, otherwise use standard comma_fmt
+    lbl_fun <- if (var_str %in% c("milex_gdp")) fmt_zero else comma_fmt
+    x_scale <- scale_x_continuous(breaks = manual_breaks, labels = lbl_fun)
+  } else {
+    global_limits <- range(pull(data, {{ var_enquo }}), na.rm = TRUE)
+    # Use standard comma_fmt by default
+    x_scale <- scale_x_continuous(labels = comma_fmt)
+  }
+
+  # Binwidth Logic
+  if (!is.null(manual_binwidth)) {
+    final_bw <- manual_binwidth
+  } else {
+    calc_bw <- function(x) 2 * IQR(x, na.rm = TRUE) / (length(na.omit(x))^(1 / 3))
+    treat_bw <- calc_bw(data %>% filter(group == "Behandlet") %>% pull({{ var_enquo }}))
+    cntrl_bw <- calc_bw(data %>% filter(group == "Kontrol") %>% pull({{ var_enquo }}))
+    final_bw <- mean(c(treat_bw, cntrl_bw), na.rm = TRUE)
+  }
+
+  # Outliers
+  outliers <- data %>%
+    group_by(group) %>%
+    mutate(
+      iqr_val = IQR({{ var_enquo }}, na.rm = TRUE),
+      upper   = quantile({{ var_enquo }}, 0.75, na.rm = TRUE) + 1.5 * iqr_val,
+      lower   = quantile({{ var_enquo }}, 0.25, na.rm = TRUE) - 1.5 * iqr_val,
+      is_out  = {{ var_enquo }} > upper | {{ var_enquo }} < lower,
+      dev     = abs({{ var_enquo }} - median({{ var_enquo }}, na.rm = TRUE))
+    ) %>%
+    filter(is_out) %>%
+    group_by(group, iso3c) %>%
+    slice_max(dev, n = 1, with_ties = FALSE) %>%
+    ungroup()
+
+  # Themes
+  common_theme <- list(scale_fill_project_qual(guide = "none"), ba_theme())
+
+  # Plots
+  p_th <- ggplot(data %>% filter(group == "Behandlet"), aes(x = {{ var_enquo }}, fill = group)) +
+    geom_histogram(binwidth = final_bw, color = "white") +
+    scale_fill_project_qual() + ba_theme() +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+    labs(x = NULL, y = "Frekvens")
+
+  p_tb <- ggplot(data %>% filter(group == "Behandlet"), aes(x = {{ var_enquo }}, fill = group)) +
+    geom_boxplot(width = 0.5, outlier.shape = NA) +
+    geom_text(data = filter(outliers, group == "Behandlet"), 
+              aes(x = {{ var_enquo }}, y = 0.15, label = iso3c), 
+              size = 3.5, family = "IBM Plex Serif") +
+    common_theme +
+    theme(
+      axis.text.x  = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.text.y  = element_blank(),
+      axis.ticks.y = element_blank()
+    ) +
+    labs(x = NULL, y = NULL)
+
+  p_ch <- ggplot(data %>% filter(group == "Kontrol"), aes(x = {{ var_enquo }}, fill = group)) +
+    geom_histogram(binwidth = final_bw, color = "white") +
+    common_theme +
+    scale_fill_project_qual() + ba_theme() +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+    labs(x = NULL, y = NULL)
+
+  p_cb <- ggplot(data %>% filter(group == "Kontrol"), aes(x = {{ var_enquo }}, fill = group)) +
+    geom_boxplot(width = 0.5, outlier.shape = NA) +
+    geom_text(data = filter(outliers, group == "Kontrol"), 
+              aes(x = {{ var_enquo }}, y = 0.15, label = iso3c), 
+              size = 3.5, family = "IBM Plex Serif") +
+    common_theme +
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
+    labs(x = var_label, y = NULL, caption = manual_caption)
+
+  # Layout
+  final_plot <- (p_th / p_tb / p_ch / p_cb) + plot_layout(heights = c(8, 1, 8, 1))
+  final_plot <- final_plot & coord_cartesian(xlim = global_limits) & x_scale
+  
+  return(final_plot)
+}
+
+```
+
+```{r}
+#| label: 03_es_prelims_prep
+#| include: false
+
+# --- Section 3 Prep: Preliminaries ---
+
+# 1. Base Data (From Global Hub)
+
+# 2. Filter Pre-treatment (for CSD & LLC)
+pre_treat_df <- es_panel %>%
+  filter(year < TREAT_YEAR)
+
+# 3. Filter Control Data (for Placebo Tests)
+control_ids <- es_panel %>%
+  filter(group == "Kontrol") %>%
+  distinct(country_dan) %>%
+  pull(country_dan)
+
+control_data <- es_panel %>%
+  filter(country_dan %in% control_ids)
+
+# 4. Variables to Test
+VARS_TO_TEST <- c(
+  "milex_gdp"      = "Forsvarsudgifter (% BNP)",
+  "milex_usd_log" = "Forsvarsudgifter (log USD)"
+)
+```
+
+```{r}
+#| label: 04_es_models_prep
+#| include: false
+
+# --- Section 1: Parameters & Setup ---
+set.seed(1234)
+N_SIMULATIONS <- 5000
+CONF_LEVEL <- 0.95
+
+# Labels
+COEF_LABELS <- c(
+  "event_time::-8:treat_dummy" = "2014",
+  "event_time::-7:treat_dummy" = "2015",
+  "event_time::-6:treat_dummy" = "2016",
+  "event_time::-5:treat_dummy" = "2017",
+  "event_time::-4:treat_dummy" = "2018",
+  "event_time::-3:treat_dummy" = "2019",
+  "event_time::-2:treat_dummy" = "2020",
+  "event_time::0:treat_dummy"  = "2022",
+  "event_time::1:treat_dummy"  = "2023",
+  "event_time::2:treat_dummy"  = "2024"
+)
+labels_df <- enframe(COEF_LABELS, name = "term", value = "label")
+
+# Model Specifications
+model_specs <- list(
+  "base" = list(
+    suffix      = "twfe",
+    formula_str = "{var_name} ~ i(event_time, treat_dummy, ref = -1) | iso3c + year",
+    cluster_fml = "~iso3c",
+    ref_points  = -1
+  ),
+  "main" = list(
+    suffix      = "group_trends",
+    formula_str = "{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year",
+    cluster_fml = "~iso3c",
+    ref_points  = c(-1, -8)
+  )
+)
+
+# Helper: Comma Formatter for Plots
+comma_fmt <- label_number(decimal.mark = ",")
+
+```
+
+```{r}
+#| label: 04_es_models_func
+#| include: false
+
+run_event_study <- function(data, var_name, spec_key) {
+  spec <- model_specs[[spec_key]]
+  
+  # 1. Estimate Model
+  fml <- as.formula(glue(spec$formula_str))
+  model_es <- feols(fml, data = data, cluster = as.formula(spec$cluster_fml))
+  
+  # 2. Pre-trend F-test
+  pre_terms <- grep("event_time::-", names(coef(model_es)), value = TRUE)
+  p_pre <- wald(model_es, pre_terms)$p
+  
+  # 3. Tidy Data & Labels
+  table_data <- tidy(model_es, conf.int = TRUE) %>%
+    inner_join(labels_df, by = "term") %>%
+    mutate(
+      event_time_num = as.numeric(str_extract(term, "-?\\d+")),
+      label = factor(label, levels = unname(COEF_LABELS))
+    ) %>%
+    arrange(event_time_num)
+  
+  # 4. Uniform Confidence Intervals (Simulation)
+  es_terms <- table_data$term
+  if(length(es_terms) > 0) {
+    vcov_mat <- vcov(model_es)[es_terms, es_terms]
+    se_vec <- table_data$std.error
+    sim_draws <- mvrnorm(n = N_SIMULATIONS, mu = rep(0, length(es_terms)), Sigma = vcov_mat)
+    sim_t_stats <- sweep(abs(sim_draws), 2, se_vec, "/")
+    crit_val_unif <- quantile(apply(sim_t_stats, 1, max), CONF_LEVEL)
+    
+    table_data <- table_data %>%
+      mutate(
+        uniform.low  = estimate - crit_val_unif * std.error,
+        uniform.high = estimate + crit_val_unif * std.error
+      )
+  }
+  
+  # 5. Event Study Plot
+  ref_val <- mean(data[[var_name]][data$event_time == -1 & data$group == "Behandlet"], na.rm = TRUE)
+  plot_breaks <- sort(unique(c(table_data$event_time_num, spec$ref_points)))
+  label_map <- setNames(c(as.character(table_data$label), "2021", "2014"), c(table_data$event_time_num, -1, -8))
+  
+  # --- FIX: Define specific formatter for the reference value ---
+  # Forces exactly 2 decimals (e.g., "1,58") regardless of axis scale
+  ref_fmt <- scales::label_number(accuracy = 0.01, decimal.mark = ",")
+  
+  p_es <- ggplot(table_data, aes(x = event_time_num, y = estimate)) +
+    geom_hline(yintercept = 0, color = "grey40") +
+    geom_vline(xintercept = -1, linetype = "dashed", color = "grey40") +
+    # Uniform CI
+    geom_ribbon(aes(ymin = uniform.low, ymax = uniform.high), alpha = 0.15, fill = "grey40") +
+    geom_errorbar(aes(ymin = uniform.low, ymax = uniform.high), width = 0) +
+    # Pointwise CI
+    geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.30, fill = "grey40") +
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1) +
+    geom_point() +
+    # Scales
+    scale_x_continuous(breaks = plot_breaks, labels = label_map[as.character(plot_breaks)]) +
+    # --- UPDATED SCALE LOGIC ---
+    scale_y_continuous(labels = function(b) {
+      lbls <- comma_fmt(b) # Normal axis ticks use default (likely integer or 1 decimal)
+      # Inject the precise reference value for 0
+      lbls[b == 0] <- glue("0 ({ref_fmt(ref_val)})")
+      return(lbls)
+    }) +
+    labs(x = NULL, y = "ATT") +
+    ba_theme() # Visuals only
+  
+  # 6. Diagnostic Plot (Only for group_trends)
+  p_diag <- NULL
+  slope_data <- NULL
+  
+  if (spec$suffix == "group_trends") {
+    # Reconstruct Trend
+    coef_data <- tidy(model_es) %>%
+      filter(grepl("event_time::", term)) %>%
+      mutate(event_time = as.numeric(str_extract(term, "-?\\d+"))) %>%
+      select(event_time, att = estimate) %>%
+      add_row(event_time = spec$ref_points, att = 0)
+      
+    plot_data_recon <- data %>%
+      filter(group == "Kontrol") %>%
+      summarise(Kontrol = mean(!!sym(var_name), na.rm = TRUE), .by = c(year, event_time)) %>%
+      left_join(coef_data, by = "event_time") %>%
+      mutate(
+        att = replace_na(att, 0),
+        Behandlet = Kontrol + att
+      ) %>%
+      pivot_longer(c(Kontrol, Behandlet), names_to = "group", values_to = "mean_val")
+      
+    p_diag <- ggplot(plot_data_recon, aes(x = year, y = mean_val, color = group)) +
+      geom_vline(xintercept = TREAT_YEAR - 1, linetype = "dashed", color = "grey40") +
+      geom_line(linewidth = 1) +
+      scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
+      scale_y_continuous(labels = comma_fmt) + # Force commas
+      scale_color_project_qual(name = NULL) +
+      labs(x = NULL, y = NULL, caption = "Behandlet linje er konstrueret som: Kontrolgruppe + Event-study koefficienter.") +
+      ba_theme()
+      
+    # Save Slope for later table
+    slope_val <- coef(model_es)[["treat_dummy::1:year"]]
+    slope_data <- tibble(year = 2014:2024, var = var_name, corr = slope_val * (year - 2014))
+  }
+
+  return(list(
+    model = model_es,
+    table = table_data,
+    plot = p_es,
+    diag_plot = p_diag,
+    slope = slope_data,
+    p_pre = p_pre,
+    n_obs = nobs(model_es)
+  ))
+}
+
+```
+
+```{r}
+#| label: 05_es_robust_func
+#| include: false
+
+# --- Section 1: Parameters ---
+SEED <- 1234
+PERMS <- 5000
+set.seed(SEED)
+
+# Data Prep
+es_panel <- es_panel
+all_countries <- unique(es_panel$country_dan)
+group_lookup <- setNames(es_panel$group, es_panel$country_dan)
+unit_list <- es_panel %>% distinct(iso3c, treat_dummy)
+
+# --- LOO Helper Function ---
+run_loo_spec <- function(data, var_name, dropped_name) {
+  fml <- as.formula(glue("{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | country_dan + year"))
+  mod <- feols(fml, data = data, cluster = ~country_dan)
+  
+  pre_terms <- grep("event_time::-", names(coef(mod)), value = TRUE)
+  p_pre <- wald(mod, pre_terms)$p
+  
+  res <- tidy(mod) %>%
+    filter(term %in% c("event_time::0:treat_dummy", "event_time::1:treat_dummy", "event_time::2:treat_dummy")) %>%
+    mutate(year = case_when(
+      grepl("::0:", term) ~ "att_2022",
+      grepl("::1:", term) ~ "att_2023",
+      grepl("::2:", term) ~ "att_2024"
+    )) %>%
+    select(year, estimate, p.value) %>%
+    pivot_wider(names_from = year, values_from = c(estimate, p.value))
+  
+  res %>% mutate(dropped_unit = dropped_name, pre_trend_p = p_pre)
+}
+
+# --- Permutation Helper Function ---
+run_permutation <- function(var_name) {
+  # 1. Baseline Model
+  fml_actual <- as.formula(glue("{var_name} ~ i(event_time, treat_dummy, ref = c(-1, -8)) + i(treat_dummy, year, ref=0) | iso3c + year"))
+  mod_actual <- feols(fml_actual, data = es_panel, cluster = ~iso3c)
+  
+  coef_names <- names(coef(mod_actual))
+  post_terms <- coef_names[grepl("event_time::", coef_names) & !grepl("-", coef_names)]
+  stat_actual <- if(length(post_terms) > 0) mean(coef(mod_actual)[post_terms]) else NA
+  
+  # 2. Permutations
+  # Note: Progress bar removed for Quarto rendering
+  placebo_stats <- numeric(PERMS)
+  
+  for (i in 1:PERMS) {
+    unit_list_shuffled <- unit_list %>%
+      mutate(treat_dummy_placebo = sample(treat_dummy)) %>%
+      select(iso3c, treat_dummy_placebo)
+    
+    data_placebo <- es_panel %>%
+      select(-treat_dummy) %>%
+      left_join(unit_list_shuffled, by = "iso3c")
+    
+    fml_placebo <- as.formula(glue("{var_name} ~ i(event_time, treat_dummy_placebo, ref = c(-1, -8)) + i(treat_dummy_placebo, year, ref=0) | iso3c + year"))
+    
+    mod_placebo <- try(feols(fml_placebo, data = data_placebo, cluster = ~iso3c), silent = TRUE)
+    
+    if (inherits(mod_placebo, "try-error")) {
+      placebo_stats[i] <- NA
+    } else {
+      p_coefs <- names(coef(mod_placebo))
+      p_terms <- p_coefs[grepl("event_time::", p_coefs) & !grepl("-", p_coefs)]
+      placebo_stats[i] <- if(length(p_terms) > 0) mean(coef(mod_placebo)[p_terms]) else NA
+    }
+  }
+  
+  # 3. Calculate P-value
+  placebo_stats_clean <- na.omit(placebo_stats)
+  n_clean <- length(placebo_stats_clean)
+  p_val_frt <- (sum(placebo_stats_clean >= stat_actual) + 1) / (n_clean + 1)
+  
+  return(list(
+    stats = placebo_stats_clean,
+    actual = stat_actual,
+    p_val = p_val_frt
+  ))
+}
+
+```
+
+```{r}
+#| label: 05_es_robust_calc-loo-gdp
+#| include: false
+
+# Calculate LOO for GDP
+var_code <- "milex_gdp"
+baseline_res <- run_loo_spec(es_panel, var_code, "Baseline") %>% mutate(group = "Baseline")
+base_att_2024_gdp <- baseline_res$estimate_att_2024
+
+loo_res <- map_dfr(all_countries, function(country) {
+  dat_sub <- es_panel %>% filter(country_dan != country)
+  run_loo_spec(dat_sub, var_code, country) %>% mutate(group = group_lookup[country])
+})
+
+final_df_gdp <- bind_rows(baseline_res, loo_res) %>% arrange(estimate_att_2024)
+
+```
+
+```{r}
+#| label: 05_es_robust_calc-loo-usd
+#| include: false
+
+# Calculate LOO for GDP
+var_code <- "milex_usd_log"
+baseline_res <- run_loo_spec(es_panel, var_code, "Baseline") %>% mutate(group = "Baseline")
+base_att_2024_usd <- baseline_res$estimate_att_2024
+
+loo_res <- map_dfr(all_countries, function(country) {
+  dat_sub <- es_panel %>% filter(country_dan != country)
+  run_loo_spec(dat_sub, var_code, country) %>% mutate(group = group_lookup[country])
+})
+
+final_df_usd <- bind_rows(baseline_res, loo_res) %>% arrange(estimate_att_2024)
+
+```
+
+```{r}
+#| label: 07_ols_eda_prep
+#| include: false
+
+# --- Section 1: Setup & Data ---
+library(moments)
+library(ggcorrplot)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+# Load OLS Data
+ols_data <- readRDS(here("data", "_processed", "ols_data.rds"))
+
+# Variables & Labels
+VARS_FOR_OLS <- c(
+  "milex_gdp_pre"      = "Ændring i forsvarsudgifter (% BNP), 2014-21",
+  "milex_gdp_post"     = "Ændring i forsvarsudgifter (% BNP), 2021-25",
+  "milex_usd_pre"      = "Ændring i forsvarsudgifter (log USD), 2014-21",
+  "milex_usd_post"     = "Ændring i forsvarsudgifter (log USD), 2021-24",
+  "dist_enemy_log"     = "Afstand til rival (log km)",
+  "nato_gap_2014"      = "Afstand til 2%-mål (pp), 2014",
+  "nato_gap_2021"      = "Afstand til 2%-mål (pp), 2021",
+  "gdp_2014_log"       = "BNP (log USD), 2014",
+  "gdp_2021_log"       = "BNP (log USD), 2021",
+  "gdp_cap_2021_log"   = "BNP pr. indbygger (log PPP), 2021",
+  "debt_gdp_2021_log"  = "Offentlig gæld (log % BNP), 2021",
+  "gdp_growth_post"    = "BNP-vækst (%), 2021-25",
+  "us_troops_2021_log" = "Antal amerikanske tropper (log), 2021",
+  "border_rus"         = "Delt grænse med Rusland"
+)
+
+# Manual Plot Settings
+MANUAL_BREAKS_OLS <- list(
+  "milex_gdp_pre"      = seq(-0.2, 1.4, by = 0.4),
+  "milex_gdp_post"     = seq(0, 2.5, by = 0.5),
+  "milex_usd_pre"      = seq(-0.2, 1.2, by = 0.2),
+  "milex_usd_post"     = seq(0, 0.8, by = 0.2),
+  "dist_enemy_log"     = seq(4.5, 8.5, by = 0.5),
+  "nato_gap_2014"      = seq(0, 1.8, by = 0.2),
+  "nato_gap_2021"      = seq(0, 1.8, by = 0.2),
+  "gdp_2014_log"       = seq(2, 9, by = 1),
+  "gdp_2021_log"       = seq(2, 9, by = 1),
+  "gdp_cap_2021_log"   = seq(9.5, 12, by = 0.5),
+  "debt_gdp_2021_log"  = seq(2.5, 5.5, by = 0.5),
+  "gdp_growth_post"    = seq(-0.05, 0.20, by = 0.05),
+  "us_troops_2021_log" = seq(1, 11, by = 2)
+)
+
+MANUAL_BINWIDTHS_OLS <- list(
+  "milex_gdp_pre"      = 0.20, "milex_gdp_post"     = 0.25,
+  "milex_usd_pre"      = 0.20, "milex_usd_post"     = 0.10,
+  "dist_enemy_log"     = 0.50, "nato_gap_2014"      = 0.20,
+  "nato_gap_2021"      = 0.20, "gdp_2014_log"       = 1.00,
+  "gdp_2021_log"       = 1.00, "gdp_cap_2021_log"   = 0.25,
+  "debt_gdp_2021_log"  = 0.50, "gdp_growth_post"    = 0.025,
+  "us_troops_2021_log" = 1.00
+)
+
+MANUAL_CAPTIONS_OLS <- list(
+  "milex_gdp_pre"    = "Z-scores: Litauen (2,36) og Letland (2,74).",
+  "milex_usd_pre"    = "Z-scores: Letland (2,05) og Litauen (2,96).",
+  "dist_enemy_log"   = "Z-scores: Litauen (-2,89) og Letland (-1,55).",
+  "gdp_cap_2021_log" = "Z-scores: Albanien (-2,67) og Luxembourg (2,57).",
+  "gdp_growth_post"  = "Z-scores: Estland (-2,24), Luxembourg (-1,39), Tyskland (-1,38), Portugal (1,15), Spanien (1,51), Albanien (1,72) og Kroatien (1,98)."
+)
+
+MANUAL_NUDGES_OLS <- list(
+  "gdp_growth_post" = c("LUX" = 0.05, "DEU" = -0.05, "ESP" = -0.05, "ALB" = 0.05)
+)
+
+```
+
+```{r}
+#| label: 07_ols_eda_func
+#| include: false
+
+create_ols_distribution_plot <- function(
+  data, var_name, var_label, 
+  manual_breaks = NULL, manual_binwidth = NULL, manual_nudges = NULL, manual_caption = NULL
+) {
+  var_enquo <- enquo(var_name)
+  var_str <- quo_name(var_enquo)
+
+  # Formatters
+  comma_fmt <- scales::label_number(decimal.mark = ",")
+  fmt_zero <- function(x) { formatted <- comma_fmt(x); ifelse(x == 0, "0", formatted) }
+
+  # Scales
+  if (!is.null(manual_breaks)) {
+    global_limits <- range(manual_breaks)
+    lbl_fun <- if (grepl("milex_gdp", var_str) || grepl("gap", var_str)) fmt_zero else comma_fmt
+    x_scale <- scale_x_continuous(breaks = manual_breaks, labels = lbl_fun)
+  } else {
+    global_limits <- range(pull(data, {{ var_enquo }}), na.rm = TRUE)
+    x_scale <- scale_x_continuous(labels = comma_fmt)
+  }
+
+  # Binwidth
+  if (!is.null(manual_binwidth)) {
+    final_bw <- manual_binwidth
+  } else {
+    vals <- na.omit(pull(data, {{ var_enquo }}))
+    iqr_val <- IQR(vals)
+    if (iqr_val == 0) iqr_val <- diff(range(vals)) / 30
+    final_bw <- 2 * iqr_val / (length(vals)^(1 / 3))
+  }
+
+  # Outliers
+  outliers <- data %>%
+    mutate(
+      iqr_val = IQR({{ var_enquo }}, na.rm = TRUE),
+      upper   = quantile({{ var_enquo }}, 0.75, na.rm = TRUE) + 1.5 * iqr_val,
+      lower   = quantile({{ var_enquo }}, 0.25, na.rm = TRUE) - 1.5 * iqr_val,
+      is_out  = {{ var_enquo }} > upper | {{ var_enquo }} < lower,
+      dev     = abs({{ var_enquo }} - median({{ var_enquo }}, na.rm = TRUE))
+    ) %>%
+    filter(is_out) %>%
+    group_by(iso3c) %>%
+    slice_max(dev, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
+    mutate(y_pos = 0)
+
+  # Nudges
+  if (!is.null(manual_nudges)) {
+    for (iso in names(manual_nudges)) {
+      outliers$y_pos[outliers$iso3c == iso] <- manual_nudges[[iso]]
+    }
+  }
+
+  # Plot
+  p_hist <- ggplot(data, aes(x = {{ var_enquo }})) +
+    geom_histogram(binwidth = final_bw, color = "white", fill = "grey40") +
+    ba_theme() +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+    labs(x = NULL, y = "Frekvens")
+
+  p_box <- ggplot(data, aes(x = {{ var_enquo }})) +
+    geom_boxplot(width = 0.5, fill = "grey40", outlier.shape = NA) +
+    geom_text(
+      data = outliers,
+      aes(y = y_pos, label = iso3c),
+      size = 3.5, family = "IBM Plex Serif"
+    ) +
+    ba_theme() +
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
+    labs(x = var_label, y = NULL, caption = manual_caption)
+
+  final_plot <- (p_hist / p_box) + plot_layout(heights = c(8, 1))
+  final_plot <- final_plot & coord_cartesian(xlim = global_limits) & x_scale
+  
+  return(final_plot)
+}
+
+```
+
+```{r}
+#| label: 08_ols_prelims_prep
+#| include: false
+
+ols_data_rownames <- ols_data %>% 
+  filter(iso3c != "") %>% 
+  column_to_rownames("iso3c")
+
+# Model Configurations
+MODELS_TO_TEST <- list(
+  "Forsvarsudgifter (% BNP) 2014-21" = list(
+    outcome = "milex_gdp_pre",
+    predictors = c("dist_enemy_log", "border_rus", "nato_gap_2014", "gdp_2014_log")
+  ),
+  "Forsvarsudgifter (% BNP) 2021-25" = list(
+    outcome = "milex_gdp_post",
+    predictors = c("dist_enemy_log", "border_rus", "nato_gap_2021", "gdp_2021_log")
+  ),
+  "Forsvarsudgifter (USD) 2014-21" = list(
+    outcome = "milex_usd_pre",
+    predictors = c("dist_enemy_log", "border_rus", "nato_gap_2014", "gdp_2014_log")
+  ),
+  "Forsvarsudgifter (USD) 2021-24" = list(
+    outcome = "milex_usd_post",
+    predictors = c("dist_enemy_log", "border_rus", "nato_gap_2021", "gdp_2021_log")
+  )
+)
+
+```
+
+```{r}
+#| label: 08_ols_prelims_func
+#| include: false
+
+run_model_diagnostics <- function(data, model_label, config) {
+  # 1. Estimate Model
+  f <- as.formula(paste(config$outcome, "~", paste(config$predictors, collapse = " + ")))
+  model <- lm(f, data = data)
+
+  # 2. Run Tests
+  shapiro <- shapiro.test(residuals(model))
+  bp_test <- bptest(model)
+  reset_test <- resettest(model, power = 2:3, type = "fitted")
+  vif_val <- max(vif(model))
+  
+  # 3. Cook's D
+  cooks <- cooks.distance(model)
+  threshold <- 4 / nrow(data)
+  outliers <- names(cooks[cooks > threshold])
+  outlier_str <- if (length(outliers) > 0) paste(outliers, collapse = ", ") else "-"
+
+  # 4. Generate Plot
+  p_diag <- autoplot(
+    model, which = 1:4, label.size = 3, data = data,
+    colour = "black", smooth.colour = "black", label.vjust = -0.5
+  ) +
+    ba_theme() +
+    theme(panel.grid.major = element_line()) +
+    plot_annotation(title = glue("Diagnostics: {model_label}"))
+
+  # 5. Return Data
+  list(
+    plot = p_diag,
+    stats = tibble(
+      Model_Name  = model_label,
+      Shapiro_P   = shapiro$p.value,
+      BP_P        = bp_test$p.value,
+      RESET_P     = reset_test$p.value,
+      MAX_VIF     = vif_val,
+      Outliers    = outlier_str
+    )
+  )
+}
+
+```
+
+```{r}
+#| label: 09_ols_models_prep
+#| include: false
+
+# Load Data
+ols_data <- readRDS(here("data", "_processed", "ols_data.rds"))
+
+fmt_comma <- scales::label_number(accuracy = 0.001, decimal.mark = ",")
+
+# Model Configuration
+TABLE_CONFIG <- list(
+  stars = c("*" = .05, "**" = .01, "***" = .001),
+  coef_map = c(
+    "border_rus"      = "Delt grænse\nmed Rusland",
+    "dist_enemy_log"  = "Afstand til\nrival (log km)",
+    "nato_gap_2014"   = "Afstand til 2%-\nmål (pp), 2014",
+    "nato_gap_2021"   = "Afstand til 2%-\nmål (pp), 2021",
+    "gdp_2014_log"    = "BNP (log USD),\n2014",
+    "gdp_2021_log"    = "BNP (log USD),\n2021"
+  ),
+  gof_map = list(
+    list("raw" = "nobs", "clean" = "Obs.", "fmt" = 0),
+    list("raw" = "adj.r.squared", "clean" = "Justeret R²", "fmt" = fmt_comma)
+  ),
+  notes = list(
+    "*p < 0,05, **p < 0,01, ***p < 0,001. Standardfejl er heteroskedasticitets-robuste (HC3). Konstantled er inkluderet i modellerne, men udeladt fra tabellen."
+    )
+  )
+
+# Function to Fit Models
+fit_ols_models <- function(data, dv, gap_var, gdp_var) {
+  f1 <- as.formula(glue("{dv} ~ border_rus"))
+  f2 <- as.formula(glue("{dv} ~ dist_enemy_log"))
+  f3 <- as.formula(glue("{dv} ~ {gap_var}"))
+  f4 <- as.formula(glue("{dv} ~ {gdp_var}"))
+  f5 <- as.formula(glue("{dv} ~ border_rus + {gap_var}"))
+  f6 <- as.formula(glue("{dv} ~ dist_enemy_log + {gap_var}"))
+  f7 <- as.formula(glue("{dv} ~ border_rus + dist_enemy_log + {gap_var} + {gdp_var}"))
+
+  list(
+    "(1)" = feols(f1, data = data, vcov = "HC3"),
+    "(2)" = feols(f2, data = data, vcov = "HC3"),
+    "(3)" = feols(f3, data = data, vcov = "HC3"),
+    "(4)" = feols(f4, data = data, vcov = "HC3"),
+    "(5)" = feols(f5, data = data, vcov = "HC3"),
+    "(6)" = feols(f6, data = data, vcov = "HC3"),
+    "(7)" = feols(f7, data = data, vcov = "HC3")
+  )
+}
+
+```
+
+```{r}
+#| label: 10_ols_robust_prep
+#| include: false
+
+# --- Config: Robustness Tables ---
+ROBUST_CONFIG <- list(
+  stars = c("*" = .05, "**" = .01, "***" = .001),
+  gof_map = list(
+    list("raw" = "nobs", "clean" = "Obs.", "fmt" = 0),
+    list("raw" = "adj.r.squared", "clean" = "Justeret R²", "fmt" = fmt_comma),
+    list("raw" = "bic", "clean" = "BIC", "fmt" = fmt_comma)
+  ),
+  notes = list(
+    "* p < 0,05, ** p < 0,01, *** p < 0,001. Standardfejl er heteroskedasticitets-robuste (HC3). Konstantled er inkluderet i modellerne, men udeladt fra tabellen."
+    )
+  )
+
+```
+
+```{r}
+#| label: 11_ols_extra_prep
+#| include: false
+
+# Estimate Models (Model 7 specification)
+mod_pre <- feols(milex_gdp_pre ~ border_rus + dist_enemy_log + nato_gap_2014 + gdp_2014_log, data = ols_data, vcov = "HC3")
+mod_post <- feols(milex_gdp_post ~ border_rus + dist_enemy_log + nato_gap_2021 + gdp_2021_log, data = ols_data, vcov = "HC3")
+
+```
+
+# Kilder
+
+## Event-study
+
+-   To address the steeper pre-trend in the treated group, I include group-specific linear time trends following the approach in @autor2003
+-   Introduction to Event-Study @miller2023
+-   origin @jacobson1993
+-   event-study best practices @freyaldenhoven
+-   what's trending (e.g. perm test) @roth2023
+-   Uniform CIs @olea2019
+-   må kunne citere den her somehow @angrist2015
+-   placebo-in-space @abadie2010
+
+### Synth?
+
+-   basic @abadie2003
+-   synthdid @arkhangelsky2021
+-   generalized @xu2017
+-   augmented @ben-michael2021
+-   
+
+## Statistics
+
+-   LLC test @levin2002
+-   Pesaran CD @pesaran2004
+-   Cook's D @cook1977
+-   Ramsey RESET @ramsey1969
+-   Heteroske @breusch1979
+-   Normality @shapiro1965
+
+## Lignende studier
+
+-   lignende studie der viser betydningen af afstand efter 2014 @kofron2023
+
+## Andet
+
+-   kritik af 2% og forsvarsudgifter som % af BNP @cooper2021
+
+## Realisme
+
+# Abstract {#sec-abstract}
+
+A wonderful serenity has taken possession of my entire soul, like these sweet mornings of spring which I enjoy with my whole heart. I am alone, and feel the charm of existence in this spot, which was created for the bliss of souls like mine. I am so happy, my dear friend, so absorbed in the exquisite sense of mere tranquil existence, that I neglect my talents. I should be incapable of drawing a single stroke at the present moment; and yet I feel that I never was a greater artist than now.
+
+When, while the lovely valley teems with vapour around me, and the meridian sun strikes the upper surface of the impenetrable foliage of my trees, and but a few stray gleams steal into the inner sanctuary, I throw myself down among the tall grass by the trickling stream; and, as I lie close to the earth, a thousand unknown plants are noticed by me: when I hear the buzz of the little world among the stalks, and grow familiar with the countless indescribable forms of the insects and flies, then I feel the presence of the Almighty, who formed us in his own image, and the breath of that universal love which bears and sustains us, as it floats around us in an eternity of bliss; and then, my friend, when darkness overspreads my eyes, and heaven and earth seem to dwell in my soul and absorb its power, like the form of a beloved mistress, then I often think with longing, Oh, would I could describe these conceptions, could impress upon paper all that is living so full and warm within me, that it might be the mirror of my soul, as my soul is the mirror of the infinite God!
+
+O my friend -- but it is too much for my strength -- I sink under the weight of the splendour of these visions! A wonderful serenity has taken possession of my entire soul, like these sweet mornings of spring which I enjoy with my whole heart. I am alone, and feel the charm of existence in this spot, which was created for the bliss of souls like mine. I am so happy, my dear friend, so absorbed in the exquisite sense of mere tranquil existence, that I neglect my talents. I should be incapable of drawing a single stroke at the present moment; and yet I feel that I never was a greater artist than now. When, while the lovely valley teems with vapour around me, and the meridian sun strikes the upper surface of the impenetrable foliage of my trees, and but a few stray gleams steal into the inner sanctuary, I throw myself
+
+# Introduktion {#sec-introduktion}
+
+# Teori {#sec-teori}
+
+# Litteratur Review {#sec-litteratur-review}
+
+# Metode {#sec-metode}
+
+```{r}
+#| label: tbl-es-sum
+#| tbl-cap: "Descriptive Statistics (Pre-treatment)"
+
+# 1. Helper functions & SMD Calculation (Same as your script)
+skew <- function(x) as.numeric(psych::skew(x, na.rm = TRUE))
+
+smd_lookup <- country_avg_df %>%
+  select(group, all_of(names(VARS_FOR_EDA))) %>%
+  tbl_summary(by = group, missing = "no") %>%
+  add_difference(test = everything() ~ "smd") %>%
+  getElement("table_body") %>%
+  transmute(
+    variable,
+    smd_formatted = formatC(estimate, digits = 2, format = "f", decimal.mark = ",")
+  )
+
+# --- FIX: Enable Commas for Calculation ---
+options(OutDec = ",")
+
+# 2. Create Base Summary Object
+raw_summary <- pre_panel %>%
+  select(group, all_of(names(VARS_FOR_EDA))) %>%
+  tbl_summary(
+    by = group,
+    label = as.list(VARS_FOR_EDA),
+    missing = "no",
+    type = all_continuous() ~ "continuous2",
+    statistic = all_continuous() ~ c("{mean} ({sd})", "{min}–{max} ({skew})"),
+    digits = all_continuous() ~ 2
+  ) %>%
+  # Add SMD logic
+  modify_table_body(
+    ~ .x %>%
+      left_join(smd_lookup, by = "variable") %>%
+      mutate(
+        label = case_when(
+          label == "Mean (SD)" ~ "Gns. (SD)",
+          str_detect(label, "Min") ~ "Min–maks. (skævhed)",
+          TRUE ~ label
+        ),
+        smd_formatted = ifelse(label == "Gns. (SD)", smd_formatted, "")
+      )
+  ) 
+
+# --- FIX: Revert to Dots for Rendering (Prevents Tinytable Border Error) ---
+options(OutDec = ".")
+
+# 3. EXTRACT AND CLEAN DATA FOR TINYTABLE
+# We grab the raw data frame directly from the object
+df_clean <- raw_summary$table_body %>%
+  select(label, stat_1, stat_2, smd_formatted, row_type) %>% # Keep row_type for bolding logic
+  mutate(
+    # Replace NAs with empty strings
+    across(c(stat_1, stat_2, smd_formatted), ~ifelse(is.na(.), "", .))
+  )
+
+# Identify rows to bold (Variable labels)
+bold_rows <- which(df_clean$row_type == "label")
+
+# Remove row_type column now that we have the index
+df_final <- df_clean %>% select(-row_type)
+
+
+
+# Clean Headers (No manual footnote marker 'ᵃ' here anymore)
+colnames(df_final) <- c("", "Behandlet\n(N = 176)", "Kontrol\n(N = 64)", "SMD")
+
+# 4. RENDER WITH TINYTABLE
+df_final %>%
+  tt(
+    width = c(0.37, 0.27, 0.27, 0.09),
+    notes = list(
+      a = list(
+        i = 0,
+        j = 2:3,
+        text = "N repræsenterer antal lande-år observationer."
+        ),
+      b = list(
+        i = 0, 
+        j = 4,
+        text = "Standardiseret gennemsnitsforskel (Hedges' g), beregnet på landegennemsnit."
+        )
+      )
+    ) %>%
+  # --- NEW: Alignment ---
+  style_tt(j = 1, align = "l") %>%
+  style_tt(j = 2:4, align = "r") %>%
+  # Apply Bold to the specific rows identified earlier
+  style_tt(i = bold_rows, bold = TRUE) %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-es-dist-gdp
+#| fig-cap: "Distribution of Defense Spending (% GDP)"
+
+# Manual settings for this variable
+create_distribution_plot(
+  data = pre_panel,
+  var_name = milex_gdp,
+  var_label = "Forsvarsudgifter (% BNP)",
+  manual_breaks = seq(0, 3, by = 0.5),
+  manual_binwidth = 0.25,
+  manual_caption = "Z-scores: Sydkorea 2020 (2,19)."
+)
+
+```
+
+```{r}
+#| label: fig-es-dist-usd
+#| fig-cap: "Distribution of Defense Spending (log USD)"
+
+create_distribution_plot(
+  data = pre_panel,
+  var_name = milex_usd_log,
+  var_label = "Forsvarsudgifter (log USD)",
+  manual_breaks = seq(18, 26, by = 2),
+  manual_binwidth = 1
+)
+
+```
+
+```{r}
+#| label: fig-es-trend-gdp
+#| fig-cap: "Trends in Defense Spending (% GDP)"
+
+ggplot(agg_data, aes(x = year, y = milex_gdp, color = group, group = group)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = TREAT_YEAR - 1, linetype = "dashed", color = "grey40") +
+  scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
+  scale_y_continuous(labels = label_number(decimal.mark = ",")) +
+  scale_color_project_qual(name = NULL) +
+  ba_theme() +
+  labs(x = NULL, y = "Forsvarsudgifter (% BNP)")
+
+```
+
+```{r}
+#| label: fig-es-trend-usd
+#| fig-cap: "Trends in Defense Spending (log USD)"
+
+ggplot(agg_data, aes(x = year, y = milex_usd_log, color = group, group = group)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = TREAT_YEAR - 1, linetype = "dashed", color = "grey40") +
+  scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
+  scale_y_continuous(labels = label_number(decimal.mark = ",")) +
+  scale_color_project_qual(name = NULL) +
+  ba_theme() +
+  labs(x = NULL, y = "Forsvarsudgifter (log USD)")
+
+```
+
+```{r}
+#| label: fig-sipri-nato
+#| fig-cap: "Comparison of SIPRI and NATO Data Sources"
+
+# --- Sektion 7: Validation ---
+df_val <- master_panel %>%
+  filter(group == "Behandlet", year >= 2014 & year <= 2025)
+
+# Correlation
+r_val <- cor(
+  df_val$milex_gdp[df_val$year < 2025],
+  df_val$milex_gdp_nato[df_val$year < 2025],
+  use = "complete.obs"
+)
+
+r_text <- number(r_val, accuracy = 0.001, decimal.mark = ",")
+
+# Plot Data
+plot_val <- df_val %>%
+  group_by(year) %>%
+  summarize(
+    SIPRI = mean(milex_gdp, na.rm = TRUE),
+    NATO  = mean(milex_gdp_nato, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = c(SIPRI, NATO), names_to = "Kilde", values_to = "pct") %>%
+  filter(!is.na(pct))
+
+# Validation Plot
+ggplot(plot_val, aes(x = year, y = pct, color = Kilde, linetype = Kilde)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c("SIPRI" = "grey40", "NATO" = "black")) +
+  scale_linetype_manual(values = c("SIPRI" = "solid", "NATO" = "solid")) +
+  scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
+  scale_y_continuous(labels = number_format(accuracy = 0.1, decimal.mark = ",")) +
+  annotate(
+    "text", x = 2016, y = max(plot_val$pct),
+    label = glue("2014-24 korrelation (Pearson r) = {r_text}"),
+    hjust = 0, vjust = 11, family = "IBM Plex Serif", size = 9 / .pt, color = "black"
+  ) +
+  labs(
+    y = "Forsvarsudgifter (% BNP)", x = NULL, color = NULL, linetype = NULL,
+    caption = "Sammenligning af behandlingsgruppens årlige gennemsnit på tværs af datakilder."
+  ) +
+  ba_theme()
+
+```
+
+```{r}
+#| label: fig-ridge
+#| fig-cap: "Ridgeline Plot of NATO Defense Spending"
+
+# --- Sektion 8: Ridgeline ---
+master_panel %>%
+  filter(group == "Behandlet", year >= 2014 & year <= 2025) %>%
+  mutate(year_f = factor(year, levels = rev(sort(unique(year))))) %>%
+  drop_na(milex_gdp_nato) %>%
+  ggplot(aes(x = milex_gdp_nato, y = year_f, fill = after_stat(x))) +
+  ggridges::geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  geom_vline(xintercept = 2.0, linetype = "dashed", color = "black") +
+  scale_fill_gradientn(
+    colors = c("#ffba08", "#f48c06", "#dc2f02", "#9d0208", "#370617", "black"),
+    values = rescale(c(0, 1, 2, 3, 5), from = c(0, 5)),
+    limits = c(0, 5)
+  ) +
+  scale_x_continuous(breaks = seq(0, 5, by = 1), limits = c(0, 5)) +
+  coord_cartesian(clip = "off") +
+  ba_theme() +
+  theme(legend.position = "none", plot.margin = margin(t = 1)) +
+  labs(x = "Forsvarsudgifter (% BNP)", y = NULL)
+
+```
+
+```{r}
+#| label: fig-es-placebo-gdp
+#| fig-cap: "Placebo-in-Space Test: Forsvarsudgifter (% BNP)"
+#| results: false
+
+# --- Placebo Test: GDP ---
+var_code <- "milex_gdp"
+
+plot_data_control <- map_dfr(control_ids, function(placebo_country) {
+    # Assign Placebo Treatment
+    data_loop <- control_data %>%
+      mutate(treat_dummy_placebo = +(country_dan == placebo_country))
+    
+    # Estimate TWFE (iid vcov)
+    f_placebo <- as.formula(glue("{var_code} ~ i(event_time, treat_dummy_placebo, ref = -1) | country_dan + year"))
+    mod_placebo <- feols(f_placebo, data = data_loop, vcov = "iid")
+    
+    # Pre-trend F-test
+    pre_terms <- grep("event_time::-", names(coef(mod_placebo)), value = TRUE)
+    p_str <- style_pvalue(wald(mod_placebo, pre_terms)$p, digits = 3, decimal.mark = ",")
+    # Output
+    tidy(mod_placebo, conf.int = TRUE) %>%
+      filter(grepl("event_time::", term)) %>%
+      mutate(
+        country = glue("{placebo_country} ({p_str})"),
+        event_time_num = as.numeric(str_extract(term, "-?\\d+"))
+      )
+  })
+
+# Generate Plot
+ggplot(plot_data_control, aes(x = event_time_num, y = estimate)) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "grey40") +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0, color = "black") +
+  geom_point(color = "black") +
+  scale_y_continuous(labels = label_number(decimal.mark = ",")) +
+  facet_wrap(~country, scales = "free_y", strip.position = "bottom") +
+  coord_cartesian(clip = "off") +
+  labs(x = NULL, y = "Placebo ATT", caption = "Tal i parentes er pre-trend F-test p-værdier.") +
+  ba_theme() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 7, color = "black"),
+    strip.text = element_text(size = 9, hjust = 0.5),
+    plot.margin = margin(t = 5)
+    )
+
+```
+
+```{r}
+#| label: fig-es-placebo-usd
+#| fig-cap: "Placebo-in-Space Test: Forsvarsudgifter (log USD)"
+#| results: false
+
+# --- Placebo Test: USD ---
+var_code <- "milex_usd_log"
+
+# (Same logic as above, but for USD variable)
+plot_data_control <- map_dfr(control_ids, function(placebo_country) {
+    data_loop <- control_data %>% mutate(treat_dummy_placebo = +(country_dan == placebo_country))
+    f_placebo <- as.formula(glue("{var_code} ~ i(event_time, treat_dummy_placebo, ref = -1) | country_dan + year"))
+    mod_placebo <- feols(f_placebo, data = data_loop, vcov = "iid")
+    
+    pre_terms <- grep("event_time::-", names(coef(mod_placebo)), value = TRUE)
+    p_str <- style_pvalue(wald(mod_placebo, pre_terms)$p, digits = 3, decimal.mark = ",")
+    
+    tidy(mod_placebo, conf.int = TRUE) %>%
+      filter(grepl("event_time::", term)) %>%
+      mutate(
+        country = glue("{placebo_country} ({p_str})"),
+        event_time_num = as.numeric(str_extract(term, "-?\\d+"))
+      )
+  })
+
+ggplot(plot_data_control, aes(x = event_time_num, y = estimate)) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "grey40") +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0, color = "black") +
+  geom_point(color = "black") +
+  scale_y_continuous(labels = label_number(decimal.mark = ",")) +
+  facet_wrap(~country, scales = "free_y", strip.position = "bottom") +
+  coord_cartesian(clip = "off") +
+  labs(x = NULL, y = "Placebo ATT", caption = "Tal i parentes er pre-trend F-test p-værdier.") +
+  ba_theme() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_text(size = 7, color = "black"),
+    strip.text = element_text(size = 9, hjust = 0.5),
+    plot.margin = margin(t = 5)
+    )
+
+```
+
+```{r}
+#| label: tbl-es-csd
+#| tbl-cap: "Test for Tværsnitsafhængighed (Pesaran's CD)"
+
+# --- Section 4: CSD Test ---
+cd_results <- map_dfr(names(VARS_TO_TEST), function(var_code) {
+  data_clean <- pre_treat_df %>% select(iso3c, year, treat_dummy, all_of(var_code))
+  
+  get_cd_pval <- function(f) {
+    mod <- feols(as.formula(f), data = data_clean)
+    pd <- pdata.frame(data_clean %>% mutate(r = residuals(mod)), index = c("iso3c", "year"))
+    pcdtest(r ~ 1, data = pd)$p.value
+  }
+  
+  tibble(
+    variable = VARS_TO_TEST[var_code],
+    # We still need decimal.mark="," here because style_pvalue creates text strings
+    p_val_base = style_pvalue(get_cd_pval(glue("{var_code} ~ 1 | iso3c + year")), digits = 3, decimal.mark = ","),
+    p_val_main = style_pvalue(get_cd_pval(glue("{var_code} ~ i(treat_dummy, year, ref=0) | iso3c + year")), digits = 3, decimal.mark = ",")
+  )
+})
+
+# Render Table (Theme handles escaping!)
+cd_results %>%
+  rename(
+    " "= variable,
+    "TWFE (p)" = p_val_base,
+    "TWFE + gruppetendenser (p)" = p_val_main
+  ) %>%
+  tt(
+    width = c(0.35, 0.20, 0.45),
+    notes = list(
+      "a" = list(i = 0, j = 3, text = "Inkluderer en gruppespecifik lineær tidstendens for behandlingsgruppen."),
+      "H₀: Tværsnitsuafhængighed. En p-værdi < 0,05 indikerer tværsnitsafhængighed."
+    )
+  ) %>%
+  style_tt(j = 2:3, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: tbl-es-llc
+#| tbl-cap: "Test for Stationaritet (Levin-Lin-Chu)"
+
+# --- Section 5: LLC Test ---
+llc_results <- map_dfr(names(VARS_TO_TEST), function(var_code) {
+  p_data_bal <- pre_treat_df %>%
+    select(iso3c, year, all_of(var_code)) %>%
+    pdata.frame(index = c("iso3c", "year")) %>%
+    make.pbalanced(balance.type = "shared.individuals")
+  
+  map_dfr(c("intercept", "trend"), function(spec_type) {
+    test_res <- purtest(object = p_data_bal[[var_code]], test = "levinlin", exo = spec_type, lags = 0)
+    tibble(
+      variable = VARS_TO_TEST[var_code],
+      spec = spec_type,
+      p.value = as.numeric(test_res$statistic$p.value)
+    )
+  })
+})
+
+# Reshape & Format
+llc_table_data <- llc_results %>%
+  pivot_wider(names_from = spec, values_from = p.value) %>%
+  mutate(across(c(intercept, trend), ~style_pvalue(.x, digits = 3, decimal.mark = ",")))
+
+# Render Table (Theme handles escaping!)
+llc_table_data %>%
+  rename(
+    " " = variable,
+    "Konstantled (p)" = intercept,
+    "Konstantled + tidstendens (p)" = trend
+  ) %>%
+  tt(
+    width = c(0.35, 0.23, 0.42),
+    notes = list("H₀: Serierne er ikke-stationære (har enhedsrødder). En p-værdi < 0,05 indikerer stationaritet.")
+  ) %>%
+  style_tt(j = 2:3, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-es-twfe-gdp
+#| fig-cap: "Event-Study: Forsvarsudgifter (% BNP) - TWFE Model"
+#| results: false
+
+# Run Analysis
+res_gdp_base <- run_event_study(es_panel, "milex_gdp", "base")
+
+# Print Plot
+res_gdp_base$plot
+
+```
+
+```{r}
+#| label: tbl-es-twfe-gdp
+#| tbl-cap: "Event-Study Estimater: Forsvarsudgifter (% BNP)"
+
+# Create Table Data
+res_gdp_base$table %>%
+  select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
+  mutate(
+    # Format Numbers (Using style_number/pvalue to create strings)
+    estimate  = style_number(estimate, digits = 3, decimal.mark = ","),
+    std.error = style_number(std.error, digits = 3, decimal.mark = ","),
+    ci_str    = glue("[{style_number(conf.low, 3, decimal.mark=',')}; {style_number(conf.high, 3, decimal.mark=',')}]"),
+    p.value   = style_pvalue(p.value, digits = 3, decimal.mark = ",")
+  ) %>%
+  select(label, estimate, std.error, ci_str, p.value) %>%
+  rename(
+    "År" = label, "ATT" = estimate, "Std. fejl" = std.error, "95% KI" = ci_str, "p-værdi" = p.value
+  ) %>%
+  tt(
+    width = c(0.14, 0.19, 0.19, 0.29, 0.19),
+    notes = list(glue("Obs.: {res_gdp_base$n_obs}. Pre-trend F-test (p): {style_pvalue(res_gdp_base$p_pre, 3, decimal.mark=',')}."))
+  ) %>%
+  style_tt(j = 2:5, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-es-group-gdp
+#| fig-cap: "Event-Study: Forsvarsudgifter (% BNP) - Korrigeret for Gruppetendenser"
+#| results: false
+
+res_gdp_trend <- run_event_study(es_panel, "milex_gdp", "main")
+res_gdp_trend$plot
+
+```
+
+```{r}
+#| label: tbl-es-group-gdp
+#| tbl-cap: "MAIN EVENT STUDY"
+
+res_gdp_trend$table %>%
+  select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
+  mutate(
+    estimate  = style_number(estimate, digits = 3, decimal.mark = ","),
+    std.error = style_number(std.error, digits = 3, decimal.mark = ","),
+    ci_str    = glue("[{style_number(conf.low, 3, decimal.mark=',')}; {style_number(conf.high, 3, decimal.mark=',')}]"),
+    p.value   = style_pvalue(p.value, digits = 3, decimal.mark = ",")
+  ) %>%
+  select(label, estimate, std.error, ci_str, p.value) %>%
+  rename("År" = label, "ATT" = estimate, "Std. fejl" = std.error, "95% KI" = ci_str, "p-værdi" = p.value) %>%
+  tt(
+    width = c(0.14, 0.19, 0.19, 0.29, 0.19),
+    notes = list(glue("Obs.: {res_gdp_trend$n_obs}. Pre-trend F-test (p): {style_pvalue(res_gdp_trend$p_pre, 3, decimal.mark=',')}."))
+  ) %>%
+  style_tt(j = 2:5, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-es-diag-gdp
+#| fig-cap: "Diagnostik: Rekonstrueret Trend (GDP)"
+
+# Diagnostic plot is only available for trend model
+res_gdp_trend$diag_plot
+
+```
+
+```{r}
+#| label: fig-es-twfe-usd
+#| fig-cap: "Event-Study: Forsvarsudgifter (log USD) - TWFE Model"
+#| results: false
+
+# Run Analysis
+res_usd_base <- run_event_study(es_panel, "milex_usd_log", "base")
+
+# Print Plot
+res_usd_base$plot
+
+```
+
+```{r}
+#| label: tbl-es-twfe-usd
+#| tbl-cap: "Event-Study Estimater: Forsvarsudgifter (log USD)"
+
+# Create Table Data
+res_usd_base$table %>%
+  select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
+  mutate(
+    # Format Numbers (Using style_number/pvalue to create strings)
+    estimate  = style_number(estimate, digits = 3, decimal.mark = ","),
+    std.error = style_number(std.error, digits = 3, decimal.mark = ","),
+    ci_str    = glue("[{style_number(conf.low, 3, decimal.mark=',')}; {style_number(conf.high, 3, decimal.mark=',')}]"),
+    p.value   = style_pvalue(p.value, digits = 3, decimal.mark = ",")
+  ) %>%
+  select(label, estimate, std.error, ci_str, p.value) %>%
+  rename(
+    "År" = label, "ATT" = estimate, "Std. fejl" = std.error, "95% KI" = ci_str, "p-værdi" = p.value
+  ) %>%
+  tt(
+    width = c(0.14, 0.19, 0.19, 0.29, 0.19),
+    notes = list(glue("Obs.: {res_usd_base$n_obs}. Pre-trend F-test (p): {style_pvalue(res_usd_base$p_pre, 3, decimal.mark=',')}."))
+  ) %>%
+  style_tt(j = 2:5, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-es-group-usd
+#| fig-cap: "Event-Study: Forsvarsudgifter (log USD) - Korrigeret for Gruppetendenser"
+#| results: false
+
+res_usd_trend <- run_event_study(es_panel, "milex_usd_log", "main")
+res_usd_trend$plot
+
+```
+
+```{r}
+#| label: tbl-es-group-usd
+#| tbl-cap: "MAIN EVENT STUDY"
+
+res_usd_trend$table %>%
+  select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
+  mutate(
+    estimate  = style_number(estimate, digits = 3, decimal.mark = ","),
+    std.error = style_number(std.error, digits = 3, decimal.mark = ","),
+    ci_str    = glue("[{style_number(conf.low, 3, decimal.mark=',')}; {style_number(conf.high, 3, decimal.mark=',')}]"),
+    p.value   = style_pvalue(p.value, digits = 3, decimal.mark = ",")
+  ) %>%
+  select(label, estimate, std.error, ci_str, p.value) %>%
+  rename("År" = label, "ATT" = estimate, "Std. fejl" = std.error, "95% KI" = ci_str, "p-værdi" = p.value) %>%
+  tt(
+    width = c(0.14, 0.19, 0.19, 0.29, 0.19),
+    notes = list(glue("Obs.: {res_usd_trend$n_obs}. Pre-trend F-test (p): {style_pvalue(res_usd_trend$p_pre, 3, decimal.mark=',')}."))
+  ) %>%
+  style_tt(j = 2:5, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-es-diag-usd
+#| fig-cap: "Diagnostik: Rekonstrueret Trend (GDP)"
+
+# Diagnostic plot is only available for trend model
+res_usd_trend$diag_plot
+
+```
+
+```{r}
+#| label: tbl-es-diag
+#| tbl-cap: "Isoleret effekt af gruppespecifik lineær tidstendens"
+
+slope_df <- bind_rows(res_gdp_trend$slope, res_usd_trend$slope) %>%
+  pivot_wider(names_from = var, values_from = corr) %>%
+  mutate(
+    # Format numbers manually to ensure commas
+    across(-year, ~style_number(.x, digits = 3, decimal.mark = ","))
+  ) %>%
+  rename(
+    "År" = year,
+    "Forsvarsudgifter (% BNP)" = milex_gdp,
+    "Forsvarsudgifter (log USD)" = milex_usd_log
+  )
+
+slope_df %>%
+  tt(width = c(0.16, 0.42, 0.42)) %>%
+  style_tt(j = 2:3, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: tbl-es-loo-gdp
+#| tbl-cap: "Leave-One-Out Sensitivitet: Forsvarsudgifter (% BNP)"
+
+# Create Table
+final_df_gdp %>%
+  mutate(
+    # Format P-values (using style_pvalue for logic + decimal.mark)
+    p_pre_fmt = style_pvalue(pre_trend_p, digits = 3, decimal.mark = ","),
+    
+    # Format Estimates with P-values
+    # We use comma_fmt() helper or style_number()
+    att_2022_fmt = glue("{style_number(estimate_att_2022, 3, decimal.mark=',')} ({style_pvalue(p.value_att_2022, 3, decimal.mark=',')})"),
+    att_2023_fmt = glue("{style_number(estimate_att_2023, 3, decimal.mark=',')} ({style_pvalue(p.value_att_2023, 3, decimal.mark=',')})"),
+    att_2024_fmt = glue("{style_number(estimate_att_2024, 3, decimal.mark=',')} ({style_pvalue(p.value_att_2024, 3, decimal.mark=',')})")
+  ) %>%
+  select(dropped_unit, group, att_2024_fmt, att_2023_fmt, att_2022_fmt, p_pre_fmt) %>%
+  rename(
+    "Fjernet Enhed" = dropped_unit,
+    "Gruppe" = group,
+    "ATT 2024" = att_2024_fmt,
+    "ATT 2023" = att_2023_fmt,
+    "ATT 2022" = att_2022_fmt,
+    "Pre-Trend\nF-Test (p)" = p_pre_fmt
+  ) %>%
+  tt(
+    notes = list("Sorteret efter 2024 ATT (stigende). ATT kolonner har p-værdier i parentes."),
+    width = c(0.175, 0.15, 0.175, 0.175, 0.175, 0.15)
+  ) %>%
+  style_tt(fontsize = 0.8) %>%
+  style_tt(j = 3:6, align = "r") %>%
+  style_tt(i = which(final_df_gdp$dropped_unit == "Baseline"), bold = TRUE) %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-es-loo-gdp
+#| fig-cap: "Leave-One-Out Plot: Forsvarsudgifter (% BNP)"
+#| fig-asp: 0.9
+
+plot_df <- final_df_gdp %>%
+  filter(dropped_unit != "Baseline") %>%
+  mutate(dropped_unit = fct_reorder(dropped_unit, estimate_att_2024, .desc = TRUE))
+
+ggplot(plot_df, aes(x = estimate_att_2024, y = dropped_unit)) +
+  geom_vline(xintercept = base_att_2024_gdp, color = "grey40", linetype = "dashed") +
+  geom_point(aes(color = group), size = 2.5) +
+  scale_color_project_qual(name = NULL) +
+  # --- FIX: Force exactly 3 decimals ---
+  scale_x_continuous(labels = scales::label_number(accuracy = 0.001, decimal.mark = ",")) +
+  labs(
+    x = "2024 ATT", y = NULL,
+    caption = "Stiplet linje indikerer reel 2024 ATT.\nPre-trend F-test er insignifikant (p > 0,05) og 2024 ATT er signifikant (p < 0,05) på tværs af samtlige udeladelser."
+  ) +
+  ba_theme() +
+  theme(
+    panel.grid.major.y = element_line(),
+    legend.position = c(0, -0.04),
+    legend.direction = "horizontal"
+    )
+
+```
+
+```{r}
+#| label: tbl-es-loo-usd
+#| tbl-cap: "Leave-One-Out Sensitivitet: Forsvarsudgifter (% BNP)"
+
+# Create Table
+final_df_usd %>%
+  mutate(
+    # Format P-values (using style_pvalue for logic + decimal.mark)
+    p_pre_fmt = style_pvalue(pre_trend_p, digits = 3, decimal.mark = ","),
+    
+    # Format Estimates with P-values
+    # We use comma_fmt() helper or style_number()
+    att_2022_fmt = glue("{style_number(estimate_att_2022, 3, decimal.mark=',')} ({style_pvalue(p.value_att_2022, 3, decimal.mark=',')})"),
+    att_2023_fmt = glue("{style_number(estimate_att_2023, 3, decimal.mark=',')} ({style_pvalue(p.value_att_2023, 3, decimal.mark=',')})"),
+    att_2024_fmt = glue("{style_number(estimate_att_2024, 3, decimal.mark=',')} ({style_pvalue(p.value_att_2024, 3, decimal.mark=',')})")
+  ) %>%
+  select(dropped_unit, group, att_2024_fmt, att_2023_fmt, att_2022_fmt, p_pre_fmt) %>%
+  rename(
+    "Fjernet Enhed" = dropped_unit,
+    "Gruppe" = group,
+    "ATT 2024" = att_2024_fmt,
+    "ATT 2023" = att_2023_fmt,
+    "ATT 2022" = att_2022_fmt,
+    "Pre-trend\nF-test (p)" = p_pre_fmt
+  ) %>%
+  tt(
+    notes = list("Sorteret efter 2024 ATT (stigende). ATT kolonner har p-værdier i parentes."),
+    width = c(0.175, 0.15, 0.175, 0.175, 0.175, 0.15)
+  ) %>%
+  style_tt(fontsize = 0.8) %>%
+  style_tt(j = 3:6, align = "r") %>%
+  style_tt(i = which(final_df_usd$dropped_unit == "Baseline"), bold = TRUE) %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-es-loo-usd
+#| fig-cap: "Leave-One-Out Plot: Forsvarsudgifter (% BNP)"
+#| fig-asp: 0.9
+
+plot_df <- final_df_usd %>%
+  filter(dropped_unit != "Baseline") %>%
+  mutate(dropped_unit = fct_reorder(dropped_unit, estimate_att_2024, .desc = TRUE))
+
+ggplot(plot_df, aes(x = estimate_att_2024, y = dropped_unit)) +
+  geom_vline(xintercept = base_att_2024_usd, color = "grey40", linetype = "dashed") +
+  geom_point(aes(color = group), size = 2.5) +
+  scale_color_project_qual(name = NULL) +
+  scale_x_continuous(breaks = c(0.15, 0.16, 0.17, 0.18, 0.19, 0.20), labels = scales::label_number(accuracy = 0.01, decimal.mark = ",")) +
+  labs(
+    x = "2024 ATT", y = NULL,
+    caption = "Stiplet linje indikerer reel 2024 ATT.\nPre-trend F-test er insignifikant (p > 0,05) og 2024 ATT er signifikant (p < 0,05) på tværs af samtlige udeladelser."
+  ) +
+  ba_theme() +
+  theme(
+    panel.grid.major.y = element_line(),
+    legend.position = c(0, -0.04),
+    legend.direction = "horizontal"
+    )
+
+```
+
+```{r}
+#| label: fig-es-perm-gdp
+#| fig-cap: "Permutationstest: Forsvarsudgifter (% BNP)"
+#| cache: true
+
+# Run Test (Cached)
+res_perm_gdp <- run_permutation("milex_gdp")
+
+# Plot
+plot_df <- data.frame(stats = res_perm_gdp$stats)
+p_label <- paste("p =", style_pvalue(res_perm_gdp$p_val, digits = 3, decimal.mark = ","))
+
+ggplot(plot_df, aes(x = stats)) +
+  geom_histogram(bins = 50, fill = "grey80", color = "white") +
+  geom_vline(aes(xintercept = res_perm_gdp$actual), color = "grey40", linetype = "dashed") +
+  annotate("text", x = res_perm_gdp$actual, y = Inf, label = p_label, 
+           vjust = 2, hjust = 1.1, color = "black", family = "IBM Plex Serif") +
+  labs(
+    x = "Gennemsnitlig Post-Treatment ATT", y = "Frekvens",
+    caption = "Distribuering under 5.000 tilfældige allokeringer.\nStiplet linje indikerer reel gennemsnitlig post-treatment ATT."
+  ) +
+  scale_x_continuous(labels = comma_fmt) +
+  ba_theme()
+
+```
+
+```{r}
+#| label: fig-es-perm-usd
+#| fig-cap: "Permutationstest: Forsvarsudgifter (log USD)"
+#| cache: true
+
+# Run Test (Cached)
+res_perm_usd <- run_permutation("milex_usd_log")
+
+# Plot
+plot_df <- data.frame(stats = res_perm_usd$stats)
+p_label <- paste("p =", style_pvalue(res_perm_usd$p_val, digits = 3, decimal.mark = ","))
+
+ggplot(plot_df, aes(x = stats)) +
+  geom_histogram(bins = 50, fill = "grey80", color = "white") +
+  geom_vline(aes(xintercept = res_perm_usd$actual), color = "grey40", linetype = "dashed") +
+  annotate("text", x = res_perm_usd$actual, y = Inf, label = p_label, 
+           vjust = 2, hjust = 1.1, color = "black", family = "IBM Plex Serif") +
+  labs(
+    x = "Gennemsnitlig Post-Treatment ATT", y = "Frekvens",
+    caption = "Distribuering under 5.000 tilfældige allokeringer.\nStiplet linje indikerer reel gennemsnitlig post-treatment ATT."
+  ) +
+  scale_x_continuous(breaks = c(-0.2, -0.1, 0, 0.1), labels = comma_fmt) +
+  ba_theme()
+
+```
+
+```{r}
+#| label: tbl-ols-sum
+#| tbl-cap: "Deskriptiv Statistik (OLS Data)"
+
+# 1. Prepare Data & Metadata
+var_meta <- enframe(VARS_FOR_OLS, name = "var_code", value = "label") %>%
+  mutate(
+    category = case_when(
+      str_detect(var_code, "milex") ~ "Afhængige variabler",
+      var_code %in% c("gdp_cap_2021_log", "gdp_growth_post", "debt_gdp_2021_log", "us_troops_2021_log") ~ "Alternative forklaringer",
+      TRUE ~ "Uafhængige variabler"
+    ),
+    category = factor(category, levels = c("Afhængige variabler", "Uafhængige variabler", "Alternative forklaringer")),
+    label = factor(label, levels = unname(VARS_FOR_OLS))
+  ) %>%
+  arrange(category, label)
+
+# 2. Calculate Stats
+options(OutDec = ",")
+summary_stats <- ols_data %>%
+  select(all_of(var_meta$var_code)) %>%
+  pivot_longer(cols = everything(), names_to = "var_code", values_to = "value") %>%
+  group_by(var_code) %>%
+  summarize(
+    Mean = mean(value, na.rm = TRUE),
+    SD = sd(value, na.rm = TRUE),
+    Min = min(value, na.rm = TRUE),
+    Max = max(value, na.rm = TRUE),
+    Skew = skewness(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  left_join(var_meta, by = "var_code") %>%
+  filter(var_code != "border_rus") %>%
+  arrange(category, label) %>%
+  transmute(
+    Category = category,
+    # --- FIX 1: Insert Line Breaks Locally ---
+    # We replace the first space-paren " (" with "\n(" to wrap the unit to the next line
+    # or you can target specific long strings.
+    Variable = str_replace(as.character(label), " \\(", "\n("), 
+    Mean_SD = glue("{style_number(Mean, 2, decimal.mark=',')} ({style_number(SD, 2, decimal.mark=',')})"),
+    Range = glue("{style_number(Min, 2, decimal.mark=',')}–{style_number(Max, 2, decimal.mark=',')}"),
+    Skew = style_number(Skew, 2, decimal.mark=',')
+  )
+options(OutDec = ".")
+
+# --- FIX 2: Calculate Row Indices for Borders ---
+# Total rows = Data rows + Group Header rows
+n_data <- nrow(summary_stats)
+n_groups <- length(unique(summary_stats$Category))
+n_total <- n_data + n_groups 
+
+# 3. Render Table
+summary_stats %>%
+  select(-Category) %>% 
+  rename(" " = Variable, "Gns. (SD)" = Mean_SD, "Min–maks." = Range, "Skævhed" = Skew) %>%
+  tt(
+    width = c(0.4, 0.2, 0.2, 0.2),
+    notes = list("N = 22 for alle variabler.")
+  ) %>%
+  group_tt(i = summary_stats$Category) %>%
+  style_tt(j = 2:4, align = "r") %>%
+  style_tt(i = "groupi", bold = TRUE, align = "l") %>%
+  ba_tiny_theme() %>%
+  style_tt(i = groupi[c(2, 3)], line = "t", line_width = 0.05) %>%
+  # --- FIX 3: Correct the Bottom Border ---
+  # Remove the "bugged" border (which hit at n_data)
+  style_tt(i = n_data, line = "b", line_width = 0) %>%
+  # Add the correct border at the true bottom
+  style_tt(i = n_total, line = "b", line_width = 0.05)
+
+```
+
+```{r}
+#| label: fig-ols-dist-milex-gdp-pre
+#| fig-cap: "Fordeling: Ændring i forsvarsudgifter (% BNP), 2014-21"
+
+create_ols_distribution_plot(
+  data = ols_data,
+  var_name = milex_gdp_pre,
+  var_label = VARS_FOR_OLS["milex_gdp_pre"],
+  manual_breaks = MANUAL_BREAKS_OLS[["milex_gdp_pre"]],
+  manual_binwidth = MANUAL_BINWIDTHS_OLS[["milex_gdp_pre"]],
+  manual_caption = MANUAL_CAPTIONS_OLS[["milex_gdp_pre"]]
+)
+
+```
+
+```{r}
+#| label: fig-ols-dist-milex-gdp-post
+#| fig-cap: "Fordeling: Ændring i forsvarsudgifter (% BNP), 2021-25"
+
+create_ols_distribution_plot(
+  data = ols_data,
+  var_name = milex_gdp_post,
+  var_label = VARS_FOR_OLS["milex_gdp_post"],
+  manual_breaks = MANUAL_BREAKS_OLS[["milex_gdp_post"]],
+  manual_binwidth = MANUAL_BINWIDTHS_OLS[["milex_gdp_post"]]
+)
+
+```
+
+```{r}
+#| label: fig-ols-dist-milex-usd-pre
+#| fig-cap: "Fordeling: Ændring i forsvarsudgifter (log USD), 2014-21"
+
+create_ols_distribution_plot(
+  data = ols_data,
+  var_name = milex_usd_pre,
+  var_label = VARS_FOR_OLS["milex_usd_pre"],
+  manual_breaks = MANUAL_BREAKS_OLS[["milex_usd_pre"]],
+  manual_binwidth = MANUAL_BINWIDTHS_OLS[["milex_usd_pre"]],
+  manual_caption = MANUAL_CAPTIONS_OLS[["milex_usd_pre"]]
+)
+
+```
+
+```{r}
+#| label: fig-ols-dist-milex-usd-post
+#| fig-cap: "Fordeling: Ændring i forsvarsudgifter (log USD), 2021-24"
+
+create_ols_distribution_plot(
+  data = ols_data,
+  var_name = milex_usd_post,
+  var_label = VARS_FOR_OLS["milex_usd_post"],
+  manual_breaks = MANUAL_BREAKS_OLS[["milex_usd_post"]],
+  manual_binwidth = MANUAL_BINWIDTHS_OLS[["milex_usd_post"]],
+  manual_caption = MANUAL_CAPTIONS_OLS[["milex_usd_post"]]
+)
+```
+
+```{r}
+#| label: fig-ols-dist-enemy
+#| fig-cap: "Fordeling: Afstand til rival (log km)"
+
+create_ols_distribution_plot(
+  data = ols_data,
+  var_name = dist_enemy_log,
+  var_label = VARS_FOR_OLS["dist_enemy_log"],
+  manual_breaks = MANUAL_BREAKS_OLS[["dist_enemy_log"]],
+  manual_binwidth = MANUAL_BINWIDTHS_OLS[["dist_enemy_log"]],
+  manual_caption = MANUAL_CAPTIONS_OLS[["dist_enemy_log"]]
+)
+
+```
+
+```{r}
+#| label: fig-ols-dist-nato-pre
+#| fig-cap: "Fordeling: Afstand til 2%-mål (pp), 2014"
+
+create_ols_distribution_plot(
+  data = ols_data,
+  var_name = nato_gap_2014,
+  var_label = VARS_FOR_OLS["nato_gap_2014"],
+  manual_breaks = MANUAL_BREAKS_OLS[["nato_gap_2014"]],
+  manual_binwidth = MANUAL_BINWIDTHS_OLS[["nato_gap_2014"]],
+  manual_caption = MANUAL_CAPTIONS_OLS[["nato_gap_2014"]]
+)
+
+```
+
+```{r}
+#| label: fig-ols-dist-nato-post
+#| fig-cap: "Fordeling: Afstand til 2%-mål (pp), 2021"
+
+create_ols_distribution_plot(
+  data = ols_data,
+  var_name = nato_gap_2021,
+  var_label = VARS_FOR_OLS["nato_gap_2021"],
+  manual_breaks = MANUAL_BREAKS_OLS[["nato_gap_2021"]],
+  manual_binwidth = MANUAL_BINWIDTHS_OLS[["nato_gap_2021"]],
+  manual_caption = MANUAL_CAPTIONS_OLS[["nato_gap_2021"]]
+)
+
+```
+
+```{r}
+#| label: fig-ols-dist-gdp-pre
+#| fig-cap: "Fordeling: BNP (log USD), 2014"
+
+create_ols_distribution_plot(
+  data = ols_data,
+  var_name = gdp_2014_log,
+  var_label = VARS_FOR_OLS["gdp_2014_log"],
+  manual_breaks = MANUAL_BREAKS_OLS[["gdp_2014_log"]],
+  manual_binwidth = MANUAL_BINWIDTHS_OLS[["gdp_2014_log"]],
+  manual_caption = MANUAL_CAPTIONS_OLS[["gdp_2014_log"]]
+)
+
+```
+
+```{r}
+#| label: fig-ols-dist-gdp-post
+#| fig-cap: "Fordeling: BNP (log USD), 2021"
+
+create_ols_distribution_plot(
+  data = ols_data,
+  var_name = gdp_2021_log,
+  var_label = VARS_FOR_OLS["gdp_2021_log"],
+  manual_breaks = MANUAL_BREAKS_OLS[["gdp_2021_log"]],
+  manual_binwidth = MANUAL_BINWIDTHS_OLS[["gdp_2021_log"]],
+  manual_caption = MANUAL_CAPTIONS_OLS[["gdp_2021_log"]]
+)
+
+```
+
+```{r}
+#| label: fig-ols-corr-post
+#| fig-cap: "Korrelationsmatrix (2021-25)"
+
+vars_period_2 <- c("milex_gdp_post", "milex_usd_post", "nato_gap_2021", "gdp_2021_log", "dist_enemy_log", "border_rus")
+
+# Prepare Data
+corr_data <- ols_data %>%
+  select(all_of(vars_period_2)) %>%
+  rename_with(~ VARS_FOR_OLS[.], .cols = everything()) %>%
+  mutate(across(everything(), as.numeric)) %>%
+  na.omit()
+
+# Plot
+ggcorrplot(
+  cor(corr_data),
+  method = "square", type = "lower", lab = TRUE, lab_size = 3,
+  colors = c("darkred", "white", "darkgreen"),
+  outline.color = NULL,
+  ggtheme = ba_theme()
+) +
+  theme(
+    axis.text.x = element_text(size = 7, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 7),
+    legend.position = "none"
+    )
+
+```
+
+```{r}
+#| label: fig-ols-corr-pre
+#| fig-cap: "Korrelationsmatrix (2014-21)"
+
+vars_period_1 <- c("milex_gdp_pre", "milex_usd_pre", "nato_gap_2014", "gdp_2014_log", "dist_enemy_log", "border_rus")
+
+# Prepare Data
+corr_data <- ols_data %>%
+  select(all_of(vars_period_1)) %>%
+  rename_with(~ VARS_FOR_OLS[.], .cols = everything()) %>%
+  mutate(across(everything(), as.numeric)) %>%
+  na.omit()
+
+# Plot
+ggcorrplot(
+  cor(corr_data),
+  method = "square", type = "lower", lab = TRUE, lab_size = 3,
+  colors = c("darkred", "white", "darkgreen"),
+  outline.color = NULL,
+  ggtheme = ba_theme()
+) +
+  theme(
+    axis.text.x = element_text(size = 7, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 7),
+    legend.position = "none"
+    )
+
+```
+
+```{r}
+#| label: fig-ols-post-map
+#| fig-cap: "Kort: Ændring i forsvarsudgifter (% BNP), 2021-25"
+#| fig-asp: 0.9
+
+# Get Map Data
+world_map_sf <- ne_countries(scale = "medium", returnclass = "sf")
+map_data_joined <- world_map_sf %>% left_join(ols_data, by = c("adm0_a3" = "iso3c"))
+
+# Plot
+ggplot(data = map_data_joined) +
+  geom_sf(aes(fill = milex_gdp_post), color = "black", size = 0.2) +
+  scale_fill_gradient(
+    low = "white", high = "#9d0208", na.value = "#cccccc", limits = c(0, NA),
+    labels = scales::label_number(accuracy = 0.1, decimal.mark = ",")
+  ) +
+  coord_sf(xlim = c(-25, 45), ylim = c(35, 72), expand = FALSE, datum = NA) +
+  ba_theme() +
+  theme(legend.position = c(0, 0.7), legend.direction = "vertical")
+
+```
+
+```{r}
+#| label: fig-ols-diag-gdp
+#| fig-cap: "Modeldiagnostik: Forsvarsudgifter (% BNP)"
+
+# Run Diagnostics
+res_gdp_pre <- run_model_diagnostics(ols_data_rownames, "Forsvarsudgifter (% BNP) 2014-21", MODELS_TO_TEST[[1]])
+res_gdp_post <- run_model_diagnostics(ols_data_rownames, "Forsvarsudgifter (% BNP) 2021-25", MODELS_TO_TEST[[2]])
+
+# Display Plots
+res_gdp_pre$plot
+res_gdp_post$plot
+
+```
+
+```{r}
+#| label: fig-ols-diag-usd
+#| fig-cap: "Modeldiagnostik: Forsvarsudgifter (log USD)"
+
+res_usd_pre <- run_model_diagnostics(ols_data_rownames, "Forsvarsudgifter (USD) 2014-21", MODELS_TO_TEST[[3]])
+res_usd_post <- run_model_diagnostics(ols_data_rownames, "Forsvarsudgifter (USD) 2021-24", MODELS_TO_TEST[[4]])
+
+res_usd_pre$plot
+res_usd_post$plot
+
+```
+
+```{r}
+#| label: tbl-ols-diag
+#| tbl-cap: "Oversigt over modeldiagnostik (OLS)"
+
+# Bind rows from all results
+diag_stats <- bind_rows(
+  res_gdp_pre$stats, res_gdp_post$stats,
+  res_usd_pre$stats, res_usd_post$stats
+)
+
+# Render Table
+diag_stats %>%
+  mutate(
+    Model_Name = str_replace(Model_Name, " \\(", "\n("),
+    # Format P-values
+    across(c(Shapiro_P, BP_P, RESET_P), ~style_pvalue(.x, digits = 3, decimal.mark = ",")),
+    # Format VIF
+    MAX_VIF = style_number(MAX_VIF, digits = 2, decimal.mark = ",")
+  ) %>%
+  select(Model_Name, Shapiro_P, BP_P, RESET_P, MAX_VIF, Outliers) %>%
+  rename(
+    "Model" = Model_Name,
+    "Cook's D" = Outliers,
+    "Maks. VIF" = MAX_VIF,
+    "Shapiro-Wilk (p)" = Shapiro_P,
+    "Breusch-Pagan (p)" = BP_P,
+    "Ramsey\nRESET (p)" = RESET_P
+  ) %>%
+  tt(
+    width = c(0.27, 0.15, 0.15, 0.16, 0.12, 0.15),
+     notes = list(
+       a = list(
+         i = 0,
+         j = 6,
+         text = "Indflydelsesrige observationer."
+         )
+       )
+     ) %>%
+  style_tt(j = c(1, 6), align = "l") %>%
+  style_tt(j = 2:5, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: tbl-ols-model-gdp-pre
+#| tbl-cap: "OLS Regression: Ændring i forsvarsudgifter (% BNP), 2014-21"
+
+models_pre_gdp <- fit_ols_models(ols_data, "milex_gdp_pre", "nato_gap_2014", "gdp_2014_log")
+
+modelsummary(
+  models_pre_gdp,
+  output = "tinytable",
+  width = c(0.209, rep(0.113, 7)),
+  fmt = fmt_comma,
+  estimate = "{estimate}{stars}\n({std.error})",
+  statistic = NULL,
+  escape = FALSE,
+  stars = TABLE_CONFIG$stars,
+  coef_map = TABLE_CONFIG$coef_map,
+  gof_map = TABLE_CONFIG$gof_map,
+  notes = TABLE_CONFIG$notes
+) %>%
+  # Apply our theme
+  ba_tiny_theme() %>%
+  # Specific tweaks for regression tables (center columns 2-8)
+  style_tt(j = 2:8, align = "c")
+
+```
+
+```{r}
+#| label: tbl-ols-model-gdp-post
+#| tbl-cap: "OLS Regression: Ændring i forsvarsudgifter (% BNP), 2021-25"
+
+models_post_gdp <- fit_ols_models(ols_data, "milex_gdp_post", "nato_gap_2021", "gdp_2021_log")
+
+modelsummary(
+  models_post_gdp,
+  output = "tinytable",
+  width = c(0.209, rep(0.113, 7)),
+  fmt = fmt_comma,
+  estimate = "{estimate}{stars}\n({std.error})",
+  statistic = NULL,
+  escape = FALSE,
+  stars = TABLE_CONFIG$stars,
+  coef_map = TABLE_CONFIG$coef_map,
+  gof_map = TABLE_CONFIG$gof_map,
+  notes = TABLE_CONFIG$notes
+) %>%
+  ba_tiny_theme() %>%
+  style_tt(j = 2:8, align = "c")
+
+```
+
+```{r}
+#| label: tbl-ols-model-usd-pre
+#| tbl-cap: "OLS Regression: Ændring i forsvarsudgifter (log USD), 2014-21"
+
+models_pre_usd <- fit_ols_models(ols_data, "milex_usd_pre", "nato_gap_2014", "gdp_2014_log")
+
+modelsummary(
+  models_pre_usd,
+  output = "tinytable",
+  width = c(0.209, rep(0.113, 7)),
+  fmt = fmt_comma,
+  estimate = "{estimate}{stars}\n({std.error})",
+  statistic = NULL,
+  escape = FALSE,
+  stars = TABLE_CONFIG$stars,
+  coef_map = TABLE_CONFIG$coef_map,
+  gof_map = TABLE_CONFIG$gof_map,
+  notes = TABLE_CONFIG$notes
+) %>%
+  # Apply our theme
+  ba_tiny_theme() %>%
+  # Specific tweaks for regression tables (center columns 2-8)
+  style_tt(j = 2:8, align = "c")
+
+```
+
+```{r}
+#| label: tbl-ols-model-usd-post
+#| tbl-cap: "OLS Regression: Ændring i forsvarsudgifter (log USD), 2021-24"
+
+models_post_usd <- fit_ols_models(ols_data, "milex_usd_post", "nato_gap_2021", "gdp_2021_log")
+
+modelsummary(
+  models_post_usd,
+  output = "tinytable",
+  width = c(0.209, rep(0.113, 7)),
+  fmt = fmt_comma,
+  estimate = "{estimate}{stars}\n({std.error})",
+  statistic = NULL,
+  escape = FALSE,
+  stars = TABLE_CONFIG$stars,
+  coef_map = TABLE_CONFIG$coef_map,
+  gof_map = TABLE_CONFIG$gof_map,
+  notes = TABLE_CONFIG$notes
+  ) %>%
+  ba_tiny_theme() %>%
+  style_tt(j = 2:8, align = "c")
+
+```
+
+```{r}
+#| label: tbl-ols-z
+#| tbl-cap: "Z-test: Sammenligning af koefficienter (2014-21 vs. 2021-25)"
+
+# Helpers
+get_coef_stats <- function(model, var_name) {
+  ct <- coeftable(model)
+  list(beta = ct[var_name, "Estimate"], se = ct[var_name, "Std. Error"])
+}
+
+calc_z_test <- function(label, var_pre, var_post) {
+  mod_pre <- models_pre_gdp[["(7)"]]
+  mod_post <- models_post_gdp[["(7)"]]
+  
+  s1 <- get_coef_stats(mod_pre, var_pre)
+  s2 <- get_coef_stats(mod_post, var_post)
+  
+  z <- (s2$beta - s1$beta) / sqrt(s1$se^2 + s2$se^2)
+  p <- 2 * (1 - pnorm(abs(z)))
+  
+  tibble(
+    Variable  = label,
+    Beta_Pre  = s1$beta,
+    Beta_Post = s2$beta,
+    Diff      = s2$beta - s1$beta,
+    Z_Score   = z,
+    P_Value   = p
+  )
+}
+
+# Run Tests
+z_results <- bind_rows(
+  calc_z_test("Delt grænse\nmed Rusland", "border_rus", "border_rus"),
+  calc_z_test("Afstand til\nrival (log km)", "dist_enemy_log", "dist_enemy_log"),
+  calc_z_test("Afstand til\n2%-mål (pp)", "nato_gap_2014", "nato_gap_2021"),
+  calc_z_test("BNP (log USD)", "gdp_2014_log", "gdp_2021_log")
+)
+
+# Render
+z_results %>%
+  mutate(
+    across(c(Beta_Pre, Beta_Post, Diff, Z_Score), ~style_number(.x, digits = 3, decimal.mark = ",")),
+    P_Value = style_pvalue(P_Value, digits = 3, decimal.mark = ",")
+  ) %>%
+  rename(
+    " " = Variable,
+    "Koeff.\n(2014–21)" = Beta_Pre,
+    "Koeff.\n(2021–25)" = Beta_Post,
+    "Forskel" = Diff,
+    "Z-Score" = Z_Score,
+    "p-værdi" = P_Value
+  ) %>%
+  tt(width = c(0.21, 0.20, 0.20, 0.13, 0.13, 0.13)) %>%
+  style_tt(j = 2:6, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-ols-bi-pre
+#| fig-cap: "Bivariat sammenhæng: Ændring i forsvarsudgifter (% BNP), 2014–21"
+
+ggplot(ols_data, aes(x = dist_enemy, y = milex_gdp_pre)) +
+  geom_smooth(method = "lm", formula = y ~ log(x), color = "grey40", fill = "grey40", alpha = 0.1, fullrange = TRUE) +
+  geom_text(aes(label = iso3c, fontface = ifelse(border_rus == 1, "bold", "plain")), family = "IBM Plex Serif", size = 3.5) +
+  scale_x_continuous(labels = scales::label_number(big.mark = ".")) +
+  scale_y_continuous(labels = scales::label_number(accuracy = 0.01, decimal.mark = ",")) +
+  labs(x = "Afstand til rival (km)", y = "Ændring i forsvarsudgifter (% BNP), 2014–21", caption = "Stater markeret med fed deler grænse med Rusland.") +
+  ba_theme()
+
+```
+
+```{r}
+#| label: fig-ols-bi-post
+#| fig-cap: "Bivariat sammenhæng: Ændring i forsvarsudgifter (% BNP), 2021–25"
+
+ggplot(ols_data, aes(x = dist_enemy, y = milex_gdp_post)) +
+  geom_smooth(method = "lm", formula = y ~ log(x), color = "grey40", fill = "grey40", alpha = 0.1, fullrange = TRUE) +
+  geom_text(aes(label = iso3c, fontface = ifelse(border_rus == 1, "bold", "plain")), family = "IBM Plex Serif", size = 3.5) +
+  scale_x_continuous(labels = scales::label_number(big.mark = ".")) +
+  scale_y_continuous(labels = scales::label_number(accuracy = 0.01, decimal.mark = ",")) +
+  labs(x = "Afstand til rival (km)", y = "Ændring i forsvarsudgifter (% BNP), 2021–25", caption = "Stater markeret med fed deler grænse med Rusland.") +
+  ba_theme()
+
+```
+
+```{r}
+#| label: fig-ols-loo
+#| fig-cap: "Leave-One-Out Sensitivitet: OLS Koefficienter"
+#| fig-asp: 1
+
+# 1. Setup
+target_formula <- milex_gdp_post ~ dist_enemy_log + border_rus + nato_gap_2021 + gdp_2021_log
+var_labels <- c(
+  "dist_enemy_log" = "Afstand til strategisk rival (log km)",
+  "border_rus"     = "Delt grænse med Rusland",
+  "nato_gap_2021"  = "Afstand til NATO's 2%-mål (% BNP), 2021",
+  "gdp_2021_log"   = "BNP (log USD), 2021"
+  )
+plot_order <- c("Delt grænse med Rusland", "Afstand til strategisk rival (log km)", "Afstand til NATO's 2%-mål (% BNP), 2021", "BNP (log USD), 2021")
+
+# 2. True Model
+true_model <- feols(target_formula, data = ols_data, vcov = "HC3")
+true_coeffs <- tidy(true_model) %>%
+  filter(term %in% names(var_labels)) %>%
+  transmute(term, true_estimate = estimate, label = var_labels[term])
+
+# 3. Jackknife Loop
+loo_results <- map_dfr(unique(ols_data$iso3c), function(dropped_iso) {
+  subset_data <- filter(ols_data, iso3c != dropped_iso)
+  mod <- feols(target_formula, data = subset_data, vcov = "HC3")
+  
+  tidy(mod) %>%
+    filter(term %in% names(var_labels)) %>%
+    mutate(dropped_unit = dropped_iso, label = var_labels[term]) %>%
+    select(dropped_unit, label, estimate, p.value)
+})
+
+# 4. Prepare Plot Data
+plot_df <- loo_results %>%
+  left_join(true_coeffs, by = "label") %>%
+  mutate(
+    significance = ifelse(p.value < 0.05, "Signifikant (p < 0,05)", "Insignifikant (p > 0,05)"),
+    significance = factor(significance, levels = c("Signifikant (p < 0,05)", "Insignifikant (p > 0,05)")),
+    label = factor(label, levels = plot_order)
+  )
+
+# 5. Generate Plot
+ggplot(plot_df, aes(x = dropped_unit, y = estimate)) +
+  geom_hline(aes(yintercept = true_estimate), linetype = "dashed", color = "grey40") +
+  geom_point(aes(color = significance), size = 2) +
+  facet_wrap(~label, scales = "free_y", ncol = 1) +
+  scale_color_manual(values = c("Signifikant (p < 0,05)" = "black", "Insignifikant (p > 0,05)" = "#c0392b")) +
+  # Use our comma formatter helper
+  scale_y_continuous(
+    labels = comma_fmt,
+    breaks = scales::breaks_extended(n = 5)
+    ) +
+  labs(x = "Ekskluderet land", y = "Koefficient", caption = "Stiplet linje indikerer reel koefficient.", color = NULL) +
+  ba_theme() +
+  theme(
+    panel.spacing.y = unit(0.3, "lines"),
+    axis.text.y = element_text (size = 9),
+    axis.text.x = element_text(size = 9, angle = 45, hjust = 1),
+    strip.text = element_text(size = 9),
+    legend.position = c(-0.08, -0.1),
+    legend.text = element_text(size = 9),
+    legend.direction = "horizontal",
+    panel.grid.major.x = element_line()
+  )
+
+```
+
+```{r}
+#| label: tbl-ols-alt-dist
+#| tbl-cap: "Robusthed: Alternative afstandsmål"
+
+# Define Models
+base_A <- "milex_gdp_post ~ nato_gap_2021 + border_rus + gdp_2021_log"
+m_rus   <- feols(as.formula(paste(base_A, "+ dist_rus_log")), data = ols_data, vcov = "HC3")
+m_enemy  <- feols(as.formula(paste(base_A, "+ dist_enemy_log")), data = ols_data, vcov = "HC3")
+m_conf  <- feols(as.formula(paste(base_A, "+ dist_conf_log")), data = ols_data, vcov = "HC3")
+
+
+models_dist <- list("(1)" = m_rus, "(2)" = m_enemy, "(3)" = m_conf)
+
+# Custom Order for this table
+map_dist <- c(
+  "border_rus"        = "Delt grænse\nmed Rusland",
+  "nato_gap_2021"     = "Afstand til 2%-\nmål (pp), 2021",
+  "gdp_2021_log"      = "BNP (log USD),\n2021",
+  "dist_rus_log"      = "Afstand til\nRusland (log km)",
+  "dist_enemy_log"    = "Afstand til\nrival (log km)",
+  "dist_conf_log"     = "Afstand til\nkonflikt (log km)"
+  )
+
+# Render Table
+modelsummary(
+  models_dist,
+  output = "tinytable",
+  width = c(0.4, rep(0.2, 3)),
+  fmt = fmt_comma,
+  estimate = "{estimate}{stars}\n({std.error})",
+  statistic = NULL,
+  escape = FALSE,
+  stars = ROBUST_CONFIG$stars,
+  coef_map = map_dist,
+  gof_map = ROBUST_CONFIG$gof_map,
+  notes = ROBUST_CONFIG$notes
+) %>%
+  ba_tiny_theme() %>%
+  style_tt(j = 2:4, align = "c")
+
+```
+
+```{r}
+#| label: tbl-ols-alt-controls
+#| tbl-cap: "Robusthed: Alternative forklaringer"
+
+# Define Models
+base_B <- "milex_gdp_post ~ border_rus + dist_enemy_log + nato_gap_2021"
+m_gdp    <- feols(as.formula(paste(base_B, "+ gdp_2021_log")), data = ols_data, vcov = "HC3")
+m_cap    <- feols(as.formula(paste(base_B, "+ gdp_cap_2021_log")), data = ols_data, vcov = "HC3")
+m_growth <- feols(as.formula(paste(base_B, "+ gdp_growth_post")), data = ols_data, vcov = "HC3")
+m_debt   <- feols(as.formula(paste(base_B, "+ debt_gdp_2021_log")), data = ols_data, vcov = "HC3")
+m_troops <- feols(as.formula(paste(base_B, "+ us_troops_2021_log")), data = ols_data, vcov = "HC3")
+m_post   <- feols(as.formula(paste(base_B, "+ post_com")), data = ols_data, vcov = "HC3")
+
+models_alt <- list(
+  "(1)" = m_gdp, "(2)" = m_cap, "(3)" = m_growth, 
+  "(4)" = m_debt, "(5)" = m_troops, "(6)" = m_post
+)
+
+# Custom Order for this table (Standard Model Order + Controls)
+map_ctrl <- c(
+  "border_rus"        = "Delt grænse\nmed Rusland",
+  "dist_enemy_log"    = "Afstand til\nrival (log km)",
+  "nato_gap_2021"     = "Afstand til 2%-\nmål (pp), 2021",
+  "gdp_2021_log"      = "BNP (log USD),\n2021",
+  "gdp_cap_2021_log"  = "BNP pr. indb.\n(log PPP), 2021",
+  "gdp_growth_post"   = "BNP-vækst (%),\n2021-25",
+  "debt_gdp_2021_log" = "Offentlig gæld\n(log % BNP)",
+  "us_troops_2021_log"= "Amerikanske\ntropper (log)",
+  "post_com"          = "Post-kommuni-\nstisk stat"
+)
+
+# Render Table
+modelsummary(
+  models_alt,
+  output = "tinytable",
+  width = c(0.22, rep(0.13, 6)),
+  fmt = fmt_comma,
+  estimate = "{estimate}{stars}\n({std.error})",
+  statistic = NULL,
+  escape = FALSE,
+  stars = ROBUST_CONFIG$stars,
+  coef_map = map_ctrl,
+  gof_map = ROBUST_CONFIG$gof_map,
+  notes = ROBUST_CONFIG$notes
+) %>%
+  ba_tiny_theme() %>%
+  style_tt(j = 2:7, align = "c")
+
+```
+
+```{r}
+#| label: fig-ols-forest
+#| fig-cap: "Koefficient Sammenligning: Præ- vs. Post-Invasion"
+#| fig-height: 4.5
+
+# 1. Tidy Data
+get_tidy_data <- function(model, period_label) {
+  tidy(model, conf.int = TRUE, conf.level = 0.95) %>%
+    mutate(period = period_label) %>%
+    filter(term != "(Intercept)")
+}
+
+df_pre <- get_tidy_data(mod_pre, "Præ-invasion (2014-21)")
+df_post <- get_tidy_data(mod_post, "Post-invasion (2021-25)")
+
+# 2. Process Labels
+plot_data <- bind_rows(df_pre, df_post) %>%
+  mutate(
+    term_common = case_when(
+      term == "dist_enemy_log" ~ "dist_enemy",
+      term == "border_rus" ~ "border",
+      str_detect(term, "nato_gap") ~ "nato",
+      str_detect(term, "gdp_") ~ "gdp",
+      TRUE ~ term
+    ),
+    term_label = case_when(
+      term_common == "border" ~ "Delt grænse\nmed Rusland",
+      term_common == "dist_enemy" ~ "Afstand til\nrival (log km)", # Consistent shorthand
+      term_common == "nato" ~ "Afstand til\n2%-mål (pp)",         # Consistent shorthand
+      term_common == "gdp" ~ "BNP (log USD)"
+    ),
+    # Factor levels for plot order (Bottom to Top)
+    term_label = factor(term_label, levels = c(
+      "BNP (log USD)",
+      "Afstand til\n2%-mål (pp)",
+      "Afstand til\nrival (log km)",
+      "Delt grænse\nmed Rusland"
+    )),
+    period = factor(period, levels = c("Post-invasion (2021-25)", "Præ-invasion (2014-21)"))
+  )
+
+# 3. Plot
+ggplot(plot_data, aes(x = estimate, y = term_label, color = period)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
+  geom_pointrange(
+    aes(xmin = conf.low, xmax = conf.high),
+    position = position_dodge(width = 0.2),
+    size = 0.5, fatten = 1.5
+  ) +
+  scale_color_manual(values = c("Præ-invasion (2014-21)" = "grey60", "Post-invasion (2021-25)" = "black")) +
+  scale_x_continuous(
+    breaks = c(-0.5, 0, 0.5, 1, 1.5),
+    labels = number_format(decimal.mark = ",")
+  ) +
+  labs(x = "Koefficient", y = NULL, color = NULL) +
+  ba_theme() +
+  theme(
+    legend.position = c(-0.2, -0.08),
+    legend.text = element_text(size = 9),
+    legend.direction = "horizontal",
+    plot.margin = margin(b = 16),
+    axis.text.y = element_text(size = 9)
+    )
+
+```
+
+```{r}
+#| label: fig-ols-resid-map
+#| fig-cap: "Kort: Modelafvigelser (Residualer) for Post-Invasion model"
+#| fig-asp: 0.9
+
+# 1. Calculate Residuals
+data_with_resid <- augment(mod_post, data = ols_data) %>%
+  select(iso3c, .resid)
+
+# 2. Map Data
+world_map_sf <- ne_countries(scale = "medium", returnclass = "sf")
+map_data <- world_map_sf %>% left_join(data_with_resid, by = c("adm0_a3" = "iso3c"))
+
+# 3. Plot Settings
+max_dev <- max(abs(map_data$.resid), na.rm = TRUE)
+limit_range <- c(-max_dev, max_dev)
+
+# 4. Plot
+ggplot(data = map_data) +
+  geom_sf(aes(fill = .resid), color = "black", size = 0.2) +
+  scale_fill_gradient2(
+    low = "#0077b6",
+    mid = "white",
+    high = "#9d0208",
+    midpoint = 0,
+    na.value = "#cccccc",
+    limits = limit_range,
+    labels = number_format(accuracy = 0.1, decimal.mark = ",")
+  ) +
+  coord_sf(xlim = c(-25, 45), ylim = c(35, 72), expand = FALSE, datum = NA) +
+  ba_theme() +
+  theme(legend.position = c(0, 0.7), legend.direction = "vertical")
+
+```
+
+```{r}
+#| label: tbl-ols-resid
+#| tbl-cap: "Oversigt over residualer (Post-Invasion model)"
+
+# 1. Get Danish Names
+danish_names <- master_panel %>% select(iso3c, country_dan) %>% distinct()
+
+# 2. Render Table
+data_with_resid %>%
+  left_join(danish_names, by = "iso3c") %>%
+  select(country_dan, .resid) %>%
+  arrange(desc(.resid)) %>%
+  mutate(
+    .resid = style_number(.resid, digits = 3, decimal.mark = ",")
+  ) %>%
+  rename(" " = country_dan, "Residual" = .resid) %>%
+  tt(width = c(0.6, 0.4)) %>%
+  ba_tiny_theme() %>%
+  style_tt(j = 2, align = "r") %>%
+  style_tt(j = 1, align = "l")
+
+```
+
+# Analyse {#sec-analyse}
+
+# Diskussion {#sec-diskussion}
+
+# Konklusion {#sec-konklusion}
+
+# Appendiks {#sec-appendiks}
+
+# Referencer {#sec-referencer}
+
+Antal sider i alt: XXX
