@@ -5,11 +5,6 @@ editor: visual
 ---
 
 ```{=typst}
-#show cite: it => {
-  it
-}
-```
-```{=typst}
 #set page(numbering: none)
 
 #align(center + horizon)[
@@ -19,19 +14,11 @@ editor: visual
   
   #v(2em)
   
-  #text(1em)[Bachelorprojekt, Vinter 2025-26]
-  
   #text(1em)[Af Frederik Bender Bøeck-Nielsen]
   
-  #text(1em)[12. december 2025]
+  #text(1em)[Bachelorprojekt, Statskundskab]
   
-  #text(1em)[Institut for Statskundskab - Københavns Universitet]
-  
-  #text(1em)[Antal tegn (inkl. mellemrum): 55.400]
-  
-  #text(1em)[Vejleder: Asmus Leth Olsen]
-  
-  #text(1em)[Eksamensnummer: 92]
+  #text(1em)[07. december 2025]
 ]
 ```
 {{< pagebreak >}}
@@ -897,8 +884,6 @@ mod_post <- feols(milex_gdp_post ~ border_rus + dist_enemy_log + nato_gap_2021 +
 
 ```
 
-# Abstract {#sec-abstract}
-
 # Indledning {#sec-indledning}
 
 Da russiske kampvogne krydsede grænsen til Ukraine den 24. februar 2022, markerede det ikke blot begyndelsen på en konventionel landkrig i Europa; det markerede et definerende *strukturelt brud* i den internationale orden. Invasionen fungerede som et kritisk vendepunkt for europæisk sikkerhedspolitik, der fundamentalt har ændret det strategiske miljø, NATO-alliancen opererer i. I årtierne efter den kolde krigs afslutning var Europa præget af en udbredt tro på en regelbaseret verdensorden og ”historiens afslutning”, hvilket tillod de fleste europæiske stater at negligere deres territoriale forsvar til fordel for velfærdsstaten. Denne periode var kendetegnet ved en massiv indhøstning af den såkaldte ”fredsdividende”, hvor smør konsekvent blev prioriteret over kanoner.
@@ -907,47 +892,21 @@ Sikkerhedspolitisk har NATO-samarbejdet i denne periode lidt under et klassisk k
 
 Da Rusland annekterede Krim-halvøen og destabiliserede Donbas i 2014, slog den europæiske fredsillusion sine første sprækker. På NATO-topmødet i Wales samme år reagerede alliancen ved formelt at vedtage den nu velkendte ”Defense Investment Pledge”: en målsætning om, at alle medlemslande skulle bevæge sig mod at bruge mindst 2 % af BNP på forsvar inden 2024. Men til trods for de formelle løfter forblev den politiske implementering i store dele af Vesteuropa tøvende. For mange stater blev 2 %-målet betragtet som en politisk hensigtserklæring snarere end et strategisk imperativ. Syv år efter Wales-topmødet, i 2021, levede kun seks ud af alliancens daværende 30 medlemmer op til målsætningen [@falkenek2024]. De primære reaktioner i denne periode var isoleret til alliancens østlige flanke – de baltiske lande og Polen – som på grund af deres geografiske nærhed og historiske erfaringer med Sovjetunionen opfattede den russiske revisionisme som en eksistentiel trussel længe før deres vestlige allierede.
 
-Invasionen i 2022 ændrede denne kalkule øjeblikkeligt. Hvor Krim-annekteringen var et varsel, blev fuldskala-invasionen det eksogene chok, der tvang hele alliancen til at revurdere deres sikkerhedspolitiske fundament. Historisk pacifistiske lande som Tyskland proklamerede et *Zeitenwende* [@stengel2025], og i nationer, der i årevis havde ignoreret amerikanske krav om højere forsvarsbudgetter, blev oprustning pludselig et spørgsmål om national overlevelse og alliance-solidaritet. Her i 2025 observerer vi en alliance, der på overfladen fremstår mere forenet og militariseret end nogensinde før, hvor opfyldelsen af 2%-målet er gået fra at være undtagelsen til at være normen blandt de 32 medlemslande.
-
-```{r}
-#| label: fig-ridge
-#| fig-cap: "Udvikling i Forsvarsudgifter (% BNP) for Europæiske NATO-lande"
-#| output: false
-
-# --- Sektion 8: Ridgeline ---
-master_panel %>%
-  filter(group == "Behandlet", year >= 2014 & year <= 2025) %>%
-  mutate(year_f = factor(year, levels = rev(sort(unique(year))))) %>%
-  drop_na(milex_gdp_nato) %>%
-  ggplot(aes(x = milex_gdp_nato, y = year_f, fill = after_stat(x))) +
-  ggridges::geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
-  geom_vline(xintercept = 2.0, linetype = "dashed", color = "black") +
-  scale_fill_gradientn(
-    colors = c("#ffba08", "#f48c06", "#dc2f02", "#9d0208", "#370617", "black"),
-    values = rescale(c(0, 1, 2, 3, 5), from = c(0, 5)),
-    limits = c(0, 5)
-  ) +
-  scale_x_continuous(breaks = seq(0, 5, by = 1), limits = c(0, 5)) +
-  coord_cartesian(clip = "off") +
-  ba_theme() +
-  theme(legend.position = "none", plot.margin = margin(t = 1)) +
-  labs(x = "Forsvarsudgifter (% BNP)", y = NULL)
-
-```
+Invasionen i 2022 ændrede denne kalkule øjeblikkeligt. Hvor Krim-annekteringen var et varsel, blev fuldskala-invasionen det eksogene chok, der tvang hele alliancen til at revurdere deres sikkerhedspolitiske fundament. Historisk pacifistiske lande som Tyskland proklamerede et *Zeitenwende* [@puglierin2024], og i nationer, der i årevis havde ignoreret amerikanske krav om højere forsvarsbudgetter, blev oprustning pludselig et spørgsmål om national overlevelse og alliance-solidaritet. Her i 2025 observerer vi en alliance, der på overfladen fremstår mere forenet og militariseret end nogensinde før, hvor opfyldelsen af 2 %-målet er gået fra at være undtagelsen til at være normen blandt de 32 medlemslande.
 
 Denne generelle tendens mod oprustning dækker dog over en betydelig variation, som udgør denne opgaves centrale empiriske og teoretiske omdrejningspunkt. Reaktionen på den russiske aggression har ikke været homogen. Nogle stater reagerede øjeblikkeligt og voldsomt, mens andre har øget budgetterne mere gradvist eller som følge af eksternt pres. Denne heterogenitet rejser interessante spørgsmål: Er det udelukkende en realistisk logik om geografisk nærhed til truslen, der driver oprustningen? Eller spiller institutionelt pres og frygten for at miste indflydelse i alliancen en lige så stor rolle for de stater, der ligger langt fra frontlinjen?
 
-Selvom det i den offentlige debat ofte fremstilles som en selvfølge, at de stigende budgetter er en direkte kausal konsekvens af krigen, kræver en videnskabelig undersøgelse en strengere metodisk tilgang. Simple korrelationer kan være misvisende i en periode præget af høj inflation og generel global usikkerhed. Uden en robust identifikation af kausalitet risikerer man at overvurdere krigens effekt eller overse andre strukturelle drivere. Denne opgave anlægger derfor en to-delt kvantitativ analyse. Første trin søger gennem en *event-study*-model at isolere den kausale effekt af invasionen i 2022 for at dokumentere, om der er tale om et statistisk signifikant brud med fortiden. I andet trin dykker analysen ned i de underliggende mekanismer for at forklare variationen i medlemslandenes respons gennem tværsnits OLS-modeller. Forskningsspørgsmålet er derfor også to-delt, og lyder formelt:
+Selvom det i den offentlige debat ofte fremstilles som en selvfølge, at de stigende budgetter er en direkte kausal konsekvens af krigen, kræver en videnskabelig undersøgelse en strengere metodisk tilgang. Simple korrelationer kan være misvisende i en periode præget af høj inflation og generel global usikkerhed. Uden en robust identifikation af kausalitet risikeres det at overvurdere krigens effekt eller overse andre strukturelle drivere. Denne opgave anlægger derfor en to-delt kvantitativ analyse. Første trin søger gennem en *event-study*-model at isolere den kausale effekt af invasionen i 2022 for at dokumentere, om der er tale om et statistisk signifikant brud med fortiden. I andet trin dykker analysen ned i de underliggende mekanismer for at forklare variationen i medlemslandenes respons gennem tværsnits OLS-modeller. Forskningsspørgsmålet er derfor også to-delt, og lyder formelt:
 
 *I hvilken grad har Ruslands fuldskala-invasion af Ukraine i 2022 påvirket forsvarsudgifter blandt europæiske NATO-lande, og hvilke underliggende mekanismer forklarer den heterogene reaktion på tværs af alliancen?*
 
-Mens der knyttes to hypoteser – som udformes i teori-afsnittet – til undersøgelsen af den heterogene respons, opstilles følgende hypotese til analysen af den kausale effekt:
+Mens der knyttes tre hypoteser – som udformes i teori-afsnittet – til undersøgelsen af den heterogene respons, opstilles følgende hypotese til analysen af den kausale effekt:
 
 H1: *Ruslands invasion* af *Ukraine* i *2022 har haft en signifikant positiv kausal effekt på forsvarsudgifterne blandt europæiske NATO-lande.*
 
 ## Trump-effekten og USAs rolle {#sec-trump-effekten-og-usas-rolle}
 
-I en analyse af europæisk oprustning er det umuligt at ignorere NATO’s ubestridte leder USA, samt ”Trump-effekten”. Mens Rusland udgør den eksterne trussel, udgør USA's skiftende politiske kurs en intern usikkerhedsfaktor for alliancen. Valget af Donald Trump i 2016 – og hans genvalg i 2024 – har genoplivet debatten om byrdefordeling med fornyet styrke [@olesen2020]. Hvor amerikanske krav om ligelig byrdefordeling i NATO ikke er nye, har Trumps retorik og handlinger indført et element af usikkerhed hvad angår artikel 5-garantien.
+I en analyse af europæisk oprustning er det umuligt at ignorere NATO’s ubestridte leder USA, samt ”Trump-effekten”. Mens Rusland udgør den eksterne trussel, udgør USA's skiftende politiske kurs en intern usikkerhedsfaktor for alliancen. Valget af Donald Trump i 2016 – og hans genvalg i 2024 – har genoplivet debatten om byrdefordeling med fornyet styrke @olesen2020 . Hvor amerikanske krav om ligelig byrdefordeling i NATO ikke er nye, har Trumps retorik og handlinger indført et element af usikkerhed hvad angår artikel 5-garantien.
 
 Denne usikkerhed forstærkes af USA's langsigtede strategiske rekalibrering mod Asien, hvor rivaliseringen med Kina i det Sydkinesiske Hav i stigende grad kræver amerikanske ressourcer. Desuden har den amerikanske regering – specielt siden Trumps genvalg i 2024 – lagt vægt på en målsætning om at revurdere deres rolle som sikkerhedsgarant i det internationale samfund. Det ligger uden for denne opgaves rammer at isolere den specifikke kausale effekt på Europæiske NATO-landes forsvarsudgifter, af hhv. Trumps retorik og Ruslands aggression, da disse to fænomener er tidsmæssigt sammenfiltrede. Opgaven bygger i stedet på den grundantagelse, at Ruslands invasion udgør det primære *eksogene chok* til status quo i NATO-samarbejdet, der har givet de amerikanske krav tyngde, og forårsaget de budgetstigninger, vi ser i dag. Det forekommer usandsynligt, at Trumps krav alene ville have kunnet legitimere de historiske stigninger i europæiske forsvarsbudgetter uden den eksistentielle trussel fra øst. Omvendt fungerer usikkerheden om amerikanske støtte sandsynligvis som en forstærkende faktor, der har fået Europa til at tage sagen i egen hånd, samt øget incitamentet for især små stater til at signalere alliance-loyalitet gennem stigende forsvarsbudgetter.
 
@@ -955,7 +914,7 @@ Med problemstillingen og de grundlæggende præmisser på plads vil det følgend
 
 # Teori {#sec-teori}
 
-For at afdække de komplekse mekanismer, der driver forsvarsudgifter blandt europæiske NATO-lande, anlægger opgaven en teoretisk pluralistisk tilgang. Analysen trækker på elementer fra realismen og den neoliberale institutionalisme for at udarbejde og teste én hypotese relateret til hvert perspektiv. Dette skal ikke forstås som et forsøg på at argumentere for at en bestemt teoretisk retning er ”bedre” eller mere korrekt end en anden, men i stedet som en måde at forankre hypoteserne i velfunderet teori, samt at vurdere om de teoretiske retninger kan komplementere hinanden.
+For at afdække de komplekse mekanismer, der driver forsvarsudgifter blandt europæiske NATO-lande, anlægger opgaven en teoretisk pluralistisk tilgang. Analysen trækker på elementer fra realismen, den neoliberale institutionalisme og økonomisk allianceteori for at udarbejde og teste én hypotese relateret til hvert perspektiv. Dette skal ikke forstås som et forsøg på at argumentere for at en bestemt teoretisk retning er ”bedre” eller mere korrekt end en anden, men i stedet som en måde at forankre hypoteserne i velfunderet teori, samt at vurdere om de teoretiske retninger kan komplimentere hinanden.
 
 ## Realisme {#sec-realisme}
 
@@ -963,17 +922,17 @@ Den første teoretiske linse, der bringes i spil, er den realistiske skole, som 
 
 ### Strukturel Realisme: Anarki og Selvhjælp {#sec-strukturel-realisme-anarki-og-selvhjælp}
 
-Den strukturelle realisme – også kendt som neorealismen – associeres primært med Kenneth @waltz1979a. I Waltz optik er staters adfærd ikke drevet af ideologi eller interne politiske systemer, men af det internationale systems struktur. Dette system er kendetegnet ved *anarki*; hvilket ikke nødvendigvis skal forstås som kaos, men som fraværet af en overstatslig autoritet, der kan håndhæve regler og garantere staters sikkerhed og overlevelse. I denne "selvhjælps-tilstand" er staternes primære mål sikkerhed, og de må konstant forholde sig til magtfordelingen i systemet for at sikre deres overlevelse.
+Den strukturelle realisme – også kendt som neorealismen – associeres primært med Kenneth @waltz1979. I Waltz optik er staters adfærd ikke drevet af ideologi eller interne politiske systemer, men af det internationale systems struktur. Dette system er kendetegnet ved *anarki*; hvilket ikke nødvendigvis skal forstås som kaos, men som fraværet af en overstatslig autoritet, der kan håndhæve regler og garantere staters sikkerhed og overlevelse. I denne "selvhjælps-tilstand" er staternes primære mål sikkerhed, og de må konstant forholde sig til magtfordelingen i systemet for at sikre deres overlevelse.
 
-Selvom den kolde krigs afslutning fik mange liberale teoretikere til at erklære realismen for forældet, fastholder @waltz2000 dens relevans. Han beskriver NATO's fortsatte eksistens efter Den Kolde Krig som en anamoli, og opfatter den som et udtryk for et amerikansk ønske om at fastholde sin magtposition. Waltz forudså dog, at denne ubalancerede magt ville fremprovokere modreaktioner fra andre stormagter. I denne optik bør de europæiske staters øgede forsvarsudgifter efter 2022 ikke forstås som en moralsk handling, men en rationel tilpasning til en ændret struktur, hvor magtbalancen i Europa er blevet udfordret.
+Selvom den kolde krigs afslutning fik mange liberale teoretikere til at erklære realismen for forældet, argumenterer @waltz2000 for, at NATO’s fortsatte eksistens og udvidelse netop bekræfter realismens relevans: Alliancer dannes og vedligeholdes som et instrument til at balancere mod potentielle trusler. I denne optik er de europæiske staters øgede forsvarsudgifter efter 2022 ikke en moralsk handling, men en rationel tilpasning til en ændret struktur, hvor magtbalancen i Europa er blevet udfordret.
 
 ### Sikkerhedsdilemmaet {#sec-sikkerhedsdilemmaet}
 
-Men hvorfor fører strukturelle ændringer til konflikt? Denne dynamik forklares af @herz1950 med begrebet *sikkerhedsdilemma*. Dilemmaet opstår, når en stat – eksempelvis Rusland eller et NATO-land – forsøger at øge egen sikkerhed gennem oprustning, som så har den utilsigtede konsekvens at det mindsker sikkerhed hos en modpart. @jervis1978 påpeger, at dilemmaet intensiveres, når det er svært at skelne mellem offensive og defensive våben og militære strategier. Hvis de våben, en stat bruger til selvforsvar, ligner dem, der bruges til angreb, må modparten antage det værste og svare igen ved selv at opruste. Dette skaber en spiral af gensidig mistillid og militær oprustning. Jervis understreger desuden, at geografi og teknologi spiller en central rolle; hvis geografien (fx bjerge eller oceaner) favoriserer forsvaret, mindskes dilemmaet, mens åbne grænser eller offensive våbensystemer skærper det markant.
+Men hvorfor fører strukturelle ændringer til konflikt? Begrebet sikkerhedsdilemma - først introduceret af @herz1950 og siden videreudviklet af Robert @jervis1978 bruges til at forklarer denne dynamik. Dilemmaet opstår, når en stat – eksempelvis Rusland eller et NATO-lande – forsøger at øge egen sikkerhed gennem oprustning, som så har den utilsigtede konsekvens at det mindsker sikkerhed hos en modpart. Det kan være svært at skelne mellem offensive og defensive intentioner – og at tro på dem – antager modparten det værste og svarer igen ved selv at opruste. Dette skaber et dilemma hvor oprustning hos den ene part fører til oprustning hos den anden part, og deraf opstår en spiral af gensidig mistillid og militær oprustning. Jervis påpeger desuden, at geografiske faktorer spiller en central rolle for intensiteten af dette dilemma; når offensive våbensystemer f.eks. placeres tæt på en rivals grænser, skærpes dilemmaet markant.
 
-Inden for realismen eksisterer der dog en uenighed om, hvorvidt stater blot søger *nok* magt til at være sikre, eller om de søger at maksimere deres magt for at opnå regionalt hegemoni. Den defensive realisme tilsiger at stater primært søger *status quo* og sikkerhed; de balancerer kun, når de føler sig truede. Offensiv realisme hævder derimod, at stormagter altid søger at maksimere deres magt for at opnå regionalt hegemoni, da dette er den eneste garanti for sikkerhed [@mearsheimer2001].
+Inden for realismen eksisterer der dog en uenighed om, hvorvidt stater blot søger *nok* magt til at være sikre, eller om de søger at maksimere deres magt for at opnå regionalt hegemoni. Den defensive realisme tilsiger at stater primært søger *status quo* og sikkerhed; de balancerer kun, når de føler sig truede. Offensiv realisme hævder derimod, at stormagter altid søger at maksimere deres magt for at opnå regionalt hegemoni, da dette er den eneste garanti for sikkerhed \[@mearsheimer2001\].
 
-I en skarp – men kontroversiel – analyse af Ukraine-konflikten argumenterer John @mearsheimer2014 for, at krisen skal forstås som en klassisk geopolitisk reaktion. Ifølge Mearsheimer har Vestens strategi om at udvide NATO og EU mod øst – ind i Ruslands historiske interessesfære – provokeret en forudsigelig modreaktion fra Moskva. Uanset om man accepterer Mearsheimers placering af skylden hos Vesten, understreger hans teori, at internationale institutioner som NATO ikke kan ændre staternes grundlæggende adfærd; de afspejler blot den underliggende magtfordeling [@mearsheimer1994]. Invasionen i 2022 kan således tolkes som virkeliggørelsen af Mearsheimers advarsel: Rusland handler ikke ud fra imperialistisk revisionisme, men reagerer defensivt og brutalt for at forindre det, der opfattes som en eksistentiel strategisk inddæmning fra Vestens side.
+I en skarp – men kontroversiel – analyse af Ukraine-konflikten argumenterer @mearsheimer2014 for, at krisen skal forstås som en klassisk geopolitisk reaktion. Ifølge Mearsheimer har Vestens strategi om at udvide NATO og EU mod øst – ind i Ruslands historiske interessesfære – provokeret en forudsigelig realistisk modreaktion fra Moskva. Uanset om man accepterer Mearsheimers placering af skylden hos Vesten, understreger hans teori, at internationale institutioner som NATO ikke kan ændre staternes grundlæggende adfærd; de afspejler blot den underliggende magtfordeling [@mearsheimer1994]. Invasionen i 2022 kan således tolkes som virkeliggørelsen af Mearsheimers dystre forudsigelse: Rusland er en revisionistisk stat, der anvender militær magt for at forhindre en opfattet strategisk inddæmning.
 
 ### Walt’s Balance of Threat {#sec-walt’s-balance-of-threat}
 
@@ -990,213 +949,118 @@ Anvendt på den nuværende kontekst forudser Walts teori, at reaktionen på inva
 
 H2**:** *Sammenhængen mellem afstand til Rusland og ændringer i forsvarsudgifter er signifikant stærkere i perioden efter invasionen (2021-25) sammenlignet med perioden før (2014-21).*
 
-## Institutioner og byrdefordeling {#sec-institutioner-og-byrdefordeling}
+## Institutionalisme {#sec-institutionalisme}
 
-Mens realismen forklarer staters adfærd ud fra eksterne trusler og magtbalance, tilbyder den neoliberale institutionalisme et alternativt perspektiv; staters adfærd formes i høj grad af de internationale institutioner, de indgår i [@sorensen2022b]. Hvor realister som Mearsheimer afviser institutioner som magtesløse i krigstid, argumenterer institutionalister for, at netop i krisetider bliver alliancens interne regler og normer afgørende for at facilitere samarbejde. Denne sektion præsenterer en forståelsesramme, der stiller skarpt på hvordan NATO’s institutionelle design og specifikke målsætninger skaber et pres for konformitet, der rækker ud over realismens rene sikkerhedslogik. For at forstå disse dynamikker redegøres der først for alliancens iboende kollektive handlingsproblem.
+Mens realismen forklarer staters adfærd ud fra eksterne trusler og magtbalance, tilbyder den neoliberale institutionalisme et andet perspektiv: At staters adfærd i høj grad formes af de internationale institutioner, de indgår i [@sorensen2022b]. Hvor realister som Mearsheimer afviser institutioner som magtesløse i krigstid (*The False Promise*), argumenterer institutionalister for, at netop i krisetider bliver alliancens interne regler og normer afgørende for at facilitere samarbejde. Denne sektion præsenterer således en alternativ forståelse, der stiller skarpt på hvordan NATO’s institutionelle design og specifikke målsætninger skaber et pres for konformitet, der rækker ud over realismens rene sikkerhedslogik.
 
-### Det kollektive handlingsproblem {#sec-det-kollektive-handlingsproblem}
+### Samarbejde under Anarki {#sec-samarbejde-under-anarki}
 
-Fundamentet for at forstå NATO’s interne økonomi er Mancur Olson og Richard Zeckhausers klassiske teori om kollektive handlingsproblemer [@olson1966]. De argumenterer at alliancer, der producerer et offentligt gode (sikkerhed), strukturelt vil lide under *free-riding*. Da ingen medlemsstater kan ekskluderes fra NATO’s sikkerhedsgaranti, har især mindre stater et rationelt incitament til at underfinansiere deres forsvar og lade de større magter bære byrden. Empiriske studier, har historisk bekræftet denne tendens under den kolde krig [@oneal1990; @hartley1999], men teorien udfordres, når trusselsbilledet ændrer sig. @sandler1993 nuancerer dog dette med sin *Joint Product*-model. Han argumenterer for, at når truslen skifter fra abstrakt afskrækkelse til konkret territorialt forsvar - som ved invasionen i 2022 - stiger andelen af ”private goder” (behovet for at forsvare egne grænser). Dette burde teoretisk set mindske incitamentet til free-riding, men historisk har NATO alligevel kæmpet med en kronisk skæv byrdefordeling.
+Det teoretiske fundament for dette perspektiv findes hos Robert Keohane og Lisa Martin [@keohane1995]. I et direkte modsvar til realismen anerkender de, at det internationale system er anarkisk, og at stater er egoistiske aktører, men de argumenterer dog for, at institutioner – såsom NATO – løser et fundamentalt *informationsasymmetri* problem. I en alliance er staternes største frygt ikke blot den eksterne fjende, men også deres egne allieredes pålidelighed. Institutioner reducerer denne usikkerhed ved at skabe transparens og faste regler, der gør det muligt at overvåge hinandens bidrag. Ifølge @keohane1984 fungerer institutioner derfor som informations-mekanismer, der sænker transaktionsomkostningerne ved samarbejde. I kontekst af denne analyse betyder det, at NATO-medlemmer ikke kun opruster for at afskrække Rusland, men for at signalere til hinanden, at de overholder ”klubbens regler” og dermed er pålidelige partnere.
 
-### Samarbejde under anarki {#sec-samarbejde-under-anarki}
-
-Fundamentet for institutionalismen findes hos Robert Keohane og Lisa Martin [@keohane1995]. I et direkte modsvar til realismen anerkender de, at det internationale system er anarkisk, og at stater er egoistiske aktører, men de argumenterer dog for, at institutioner – såsom NATO – løser et fundamentalt problem om *informationsasymmetri*. I en alliance er staternes største frygt ikke blot den eksterne fjende, men også deres egne allieredes pålidelighed. Institutioner reducerer denne usikkerhed ved at skabe transparens og faste regler, der gør det muligt at overvåge hinandens bidrag. Ifølge @keohane1984a fungerer institutioner derfor som informations-mekanismer, der sænker transaktionsomkostningerne ved samarbejde. I kontekst af denne analyse betyder det, at NATO-medlemmer ikke kun opruster for at afskrække Rusland, men for at signalere til hinanden, at de overholder ”klubbens regler” og dermed er pålidelige partnere.
-
-At NATO har overlevet længe efter den kolde krigs afslutning – og den oprindelige trussels forsvinden – forklares af @wallander2000 med begrebet institutionelle *assets*. Wallander påpeger, at NATO ikke blot er en forsvarspagt, men en dybt integreret organisation med fælles kommandostrukturer og standardiseringsprocedurer, hvilket gør alliancen *sticky*. Omkostningerne ved at stå udenfor eller ignorere fælles beslutninger er høje, fordi alliancens infrastruktur er den mest effektive måde at håndtere sikkerhed på i Europa. Når en krise som invasionen i 2022 rammer, reagerer staterne derfor ikke kun på Rusland (den eksterne trussel), men også gennem de allerede etablerede kanaler og procedurer i NATO (den interne struktur). Invasionen må derfor forstås som at have aktiveret alliancens interne logik, hvor overholdelse af fælles standarder går fra at være en teknokratisk detalje til at være et centralt politisk symbol.
+At NATO har overlevet længe efter den kolde krigs afslutning – og den oprindelige trussels forsvinden – forklares af Celeste @wallander2000 med begrebet institutionelle *assets*. Wallander påpeger, at NATO ikke blot er en forsvarsagt, men en dybt integreret organisation med fælles kommandostrukturer, standardiseringsprocedurer og politiske konsultationsorganer. Disse institutionelle aktiver gør alliancen *sticky*. Omkostningerne ved at stå udenfor eller ignorere fælles beslutninger er høje, fordi alliancens infrastruktur er den mest effektive måde at håndtere sikkerhed på i Europa. Når en krise som invasionen i 2022 rammer, reagerer staterne derfor ikke kun på Rusland (den eksterne trussel), men også gennem de allerede etablerede kanaler og procedurer i NATO (den interne struktur). Invasionen må derfor forstås som at have aktiveret alliancens interne logik, hvor overholdelse af fælles standarder går fra at være en teknokratisk detalje til at være et centralt politisk symbol.
 
 ### Alliancer som "Costly Signals" {#sec-alliancer-som-costly-signals}
 
-Men hvorfor skulle suveræne stater underkaste sig et dyrt budgetmål på 2%, som ikke kan håndhæves juridisk? Her tilbyder @morrow1994 en rationel forklaring baseret på signal-teori: Alliancer handler om kredibilitet. For at en alliance skal være troværdig, må medlemmerne demonstrere, at de vil kæmpe for hinanden, og da intentioner er svære at bevise, kan stater bruge forsvarsudgifter som et *costly signal*. Ved at bære en betydelig økonomisk omkostning i fredstid (at bruge 2% af BNP, som ellers kunne være brugt på velfærd), sender staten et troværdigt signal til sine allierede om, at den også vil bære omkostningerne ved krig. I denne optik fungerer 2%-målet som en lakmusprøve for loyalitet. Stater, der ligger langt fra målet, signalerer implicit, at de er upålidelige *free-riders*, hvilket skader deres anseelse og indflydelse i alliancen.
+Men hvorfor skulle suveræne stater underkaste sig et dyrt budgetmål på 2%, som ikke kan håndhæves juridisk? Her tilbyder James @morrow1994 en rationel forklaring baseret på signal-teori. Morrow argumenterer for, at alliancer handler om kredibilitet. For at en alliance skal være troværdig, må medlemmerne demonstrere, at de vil kæmpe for hinanden. Da intentioner er svære at bevise, bruger stater forsvarsudgifter som et *costly signal*. Ved at bære en betydelig økonomisk omkostning i fredstid (at bruge 2% af BNP, som ellers kunne være brugt på velfærd), sender staten et troværdigt signal til sine allierede om, at den også vil bære omkostningerne ved krig. I denne optik fungerer 2%-målet som en lakmusprøve for loyalitet. Stater, der ligger langt fra målet, signalerer implicit, at de er upålidelige *free-riders*, hvilket skader deres anseelse og indflydelse i alliancen.
 
-Som @ringsmose2010 argumenterer, er 2%-målet måske nok militært arbitrært og økonomisk forsimplet, men det er politisk stærkt som et instrument for byrdefordeling. Ringsmose beskriver målet som et institutionelt *focal point*, der gør det muligt at kategorisere allierede som enten ”gode” (*contributors*) eller ”dårlige” (*free-riders*). Målet skaber således en normativ ramme for *naming and shaming*. Før 2022 var det muligt for lande som Tyskland eller Danmark at ignorere denne udskamning uden store konsekvenser, men invasionen ændrede den normative kontekst. Fra denne vinkel opfattes det at ligge langt fra målet ikke længere blot som en økonomisk prioritering, men som et sikkerhedspolitisk svigt.
+Som Jens @ringsmose2010 argumenterer, er 2%-målet måske nok militært arbitrært og økonomisk forsimplet, men det er politisk stærkt som et instrument for byrdefordeling. Ringsmose beskriver målet som et institutionelt *focal point*, der gør det muligt at kategorisere allierede som enten ”gode” (*contributors*) eller ”dårlige” (*free-riders*). Målet skaber således en normativ ramme for *naming and shaming*. Før 2022 var det muligt for lande som Tyskland eller Danmark at ignorere denne udskamning uden store konsekvenser. Men efter invasionen ændredes den normative kontekst. Fra denne vinkel vil det at ligge langt fra målet ikke længere opfattes som en ren økonomisk prioritering, men som et sikkerhedspolitisk svigt.
 
-@wivel2005 argumenterer desuden for, at specielt små stater i en alliance lever i en konstant frygt for at blive forladt af deres sikkerhedsgarant (USA). For små stater kan opfyldelsen af 2%-målet derfor ses som en slags ”forsikringspræmie”. Man betaler ikke nødvendigvis fordi man tror, at det danske forsvar alene kan stoppe Rusland, men for at købe sig til politisk *goodwill* og indflydelse i alliancen som påpeget af @jakobsen2009. Invasionen kan således tænkes at have ændret kalkulen: Prisen for at free-ride er blevet højere end prisen for at opruste.
-
-Samlet forventer et institutionelt perspektiv at invasionen har aktiveret det institutionelle pres fra NATO; de stater der i 2021 lå længst fra målet, bør i de følgende år føle det største pres for at øge deres forsvarsbudget så de kan blive opfattet som gode pålidelige allierede. Hvor Walts balance of threat-teori argumenterer at det er afstanden til fjenden, der driver oprustningen, peger det institutionelle perspektiv på at afstanden til 2%-målet bør have en selvstændig betydning. Det forventes at invasionen har fungeret som en katalysator, der har gjort det institutionelle pres markant mere potent efter invasionen, end det var før. På denne baggrund opstilles følgende hypotese for at teste effekten af det institutionelle pres i del to af analysen:
+Fra et institutionelt perspektiv vil der derfor være en forventning om at invasionen har tændt på for det institutionelle pres fra NATO; de stater der i 2021 lå længst fra målet, bør i de følgende år føle det største pres for at øge deres forsvarsbudget så de kan blive opfattet som gode pålidelige allierede.Hvor realismen forventer, at det er afstanden til fjenden (*Rusland*), der driver oprustningen, tilskriver institutionalismen, at det er afstanden til *alliancens normer* (2%-målet) der er afgørende. Ligesom med trusselsopfattelsen forventes det, at invasionen har fungeret som en katalysator, der har gjort det institutionelle pres markant mere potent efter invasionen, end det var før. Før 2022 var konsekvensen af at ignorere målet lav; efter 2022 er den politiske omkostning ved at være en upålidelige allieret steget markant. På baggrunden af denne synsvinkel opstilles følgende hypotese for at teste effekten af det institutionelle pres
 
 H3: *Sammenhængen mellem afstand til NATO's 2%-mål og ændringer i forsvarsudgifter er signifikant stærkere i perioden efter invasionen (2021-25) sammenlignet med perioden før (2014-21).*
 
-# Litteraturgennemgang {#sec-litteraturgennemgang}
+# Kollektive handlingsproblemer {#sec-kollektive-handlingsproblemer}
 
-Da de fundamentale teoretiske dynamikker er blevet udfoldet i det foregående afsnit, fokuserer denne litteraturgennemgang på den empiriske forskning i alliancers forsvarsudgifter – med specifikt fokus på NATO og Rusland – med henblik på at positionere analysens bidrag. Litteraturen kan overordnet opdeles i to bølger: Den klassiske litteratur om byrdefordeling, der fokuserer på økonomiske variabler og free-riding, og en nyere bølge, der undersøger betydningen af strategiske trusler og Ruslands revisionisme efter 2014.
+# Litteratur Gennemgang {#sec-litteratur-gennemgang}
 
-## Økonomiske determinanter og free-riding {#sec-økonomiske-determinanter-og-free-riding}
+Der eksisterer selvsagt megen forskning om staters balancering mod trusler, alliance-dynamikker, byrdefordeling, NATO, etc. Da de grundlæggende teorier og dynamikker der ligger til grundlag for denne analyse er blevet udfoldet i teori-afsnittet, fokuserer følgende litteratur gennemgang på lignende studier som også har anvendt kvantitative metoder til specifikt at analysere forsvarsudgifter i relation til Ruslands anneksering af Krim-halvøen i 2014, og fuld-skala invasion af Ukraine i 2022.
 
-Hvor den klassiske teori forudser en stærk sammenhæng mellem økonomisk størrelse og free-riding, udfordrer nyere studier dette økonomiske grundlag og peger på en mere nuanceret byrdefordeling. I sin gennemgang af feltet konkluderer @oma2012, at sammenhængen mellem BNP og forsvarsudgifter er blevet svagere og mere kompleks over tid. Hun argumenterer for, at forskningen i højere grad bør fokusere på formen af bidragene, da små stater kan yde væsentlige bidrag gennem specialiserede kapaciteter eller risikovillighed, hvilket gør isolerede budget-analyser mindre præcise. Denne observation understøttes empirisk af @becker2017, der i en analyse af NATO-allieredes strategiske kultur finder, at stater med en "atlanticistisk" orientering – herunder Storbritannien og Danmark – allokerer en disproportionalt stor del af deres budgetter til operationer, uafhængigt af deres økonomiske størrelse.
+@kofron2023 har lavet en detaljeret undersøgelse af betydningen af afstand efter annekseringen af Krim-halvøen i 2014 og finder at vej-afstand har den største korrelation med forsvarsudgifter. Dette indikerer at frygten for en reel Russisk landinvasion stadig vægter højt, trods argumenter om langdistance missiler og hybridkrig.
 
-Nyere forskning peger desuden på nødvendigheden af at disaggregere forsvarsudgifterne for at forstå disse mønstre. @kim2024 og @becker2017a argumenterer for, at det samlede budgettal (*top-line spending*) ofte slører vigtige prioriteringer, idet stater kan opfylde budgetmål gennem øgede personaleudgifter uden reelt at øge deres kampkraft (materielinvesteringer). @becker2024a anvender et *Difference-in-Difference* design og finder en stigning i udgifter til militært udstyr for NATO-lande efter 2014. Disse betragtninger naunceres yderligere af @olejnik2025, der i en analyse af 29 europæiske lande finder, at politisk ideologi former denne sammensætning: Hvor venstreorienterede regeringer tenderer mod at prioritere personel, fokuserer højreorienterede oftere på materielle investeringer. Selvom disaggregering af forsvarsbudgetter tilbyder vigtige nuancer, fastholder denne analyse fokus på de samlede budgettal for at kunne isolere den makro-strukturelle effekt af det sikkerhedspolitiske chok.
+Conyon har udført et lignende studie
 
-## Effekten af 2014: Geografi og institutionel inerti {#sec-effekten-af-2014-geografi-og-institutionel-inerti}
-
-Efter Ruslands annektering af Krim i 2014 skiftede fokus i litteraturen mod betydningen af eksterne trusler. @beraud-sudreau2018 undersøger reaktionen efter 2014 og finder et blandet resultat; mens den overordnede trusselsopfattelse ændrede sig, var den reelle budgetmæssige respons i Vesteuropa begrænset af institutionel inerti og budgetmæssige processer, der forhindrede øjeblikkelige stigninger. De identificerer således et ”Europa i to hastigheder”, hvor forsvarsinvesteringerne steg markant hurtigere i Nord- og Centraleuropa end i Syd- og Vesteuropa. Denne interne splittelse bekræftes af @jakobsen2018, der finder, at mens ”gamle” vestlige medlemslande fortsatte en adfærd præget af free-riding efter 2014, reagerede de ”nye” østlige medlemmer ved markant at øge budgetterne som direkte respons på Krim-annekteringen.
-
-At 2014 markerede et vendepunkt, understøttes metodisk af @vo2025, der ved brug af en tidsvarierende parametermodel identificerer et signifikant strukturelt brud i militærudgifterne allerede i 2014, hvilket reducerede graden af free-riding i alliancen. Ligeledes finder @knezovic2025 i en panelanalyse frem til 2023, at selve NATO-medlemskabet har haft en forstærket positiv effekt på udgifterne i perioden efter 2014. Dette indikerer, at alliancen reagerer på eksterne chok, men at reaktionen - som @waszkiewicz2023 også bekræfter - har været asymmetrisk; strategiske faktorer var den primære drivkraft for forsvarsbudgetterne i Østeuropa, men ikke i Vesteuropa.
-
-## Geografiens genkomst og 2%-målet
-
-Nødvendigheden af at inddrage geografiske variabler understøttes yderligere af den nyeste forskning, der genopdager rumlighedens betydning. @george2024 påviser, at byrdefordeling har en tydelig rumlig dimension, som klassiske økonomiske modeller ofte overser, mens @walsh2025 finder konkret evidens for en positiv sammenhæng mellem nærhed til trusler og stigende forsvarsudgifter. Dette specificeres af @conyon2025, der dokumenterer, at det at dele grænse med Rusland har været en signifikant driver for øgede forsvarsudgifter i perioden 2014-2024. Sammenhængen underbygges yderligere af @pedersen2023, der i en undersøgelse af små-stater konkluderer, at tendensen til at free-ride mindskes markant, når stater har ”udsatte grænser” (exposed borders) mod Rusland. Dette indikerer, at selektive sikkerhedsincitamenter i praksis overtrumfer den generelle økonomiske logik om at spare penge.
-
-Betydningen af den fysiske distance understreges også af @kofron2023, der finder, at ”vej-afstanden" til den nærmeste russiske militærbase har den stærkeste korrelation med forsvarsudgifter. Dette indikerer, at frygten for en konventionel russisk land-invasion stadig vægter højt i den strategiske kalkule, trods moderne teknologier som langdistancemissiler og hybridkrig. @mckay2023 nuancerer trusselsbilledet yderligere ved at påvise en stærk korrelation mellem NATO-landes bidrag og specifikke russiske styrkeniveauer i grænseregionerne, hvilket validerer brugen af nærhed som en proxy for trusselsopfattelse.
-
-## Institutionelt pres og kapacitetsefterslæb
-
-Udover geografien spiller det institutionelle og økonomiske pres dog fortsat en væsentlig rolle for staternes adfærd. @becker2024 finder, at formelle løfter og 'naming and shaming' har en selvstændig effekt på investeringer, hvilket bekræfter, at politisk pres virker. Dog påpeger @haesebrouck2022 at politisk vilje sjældent står alene; kombinationen af et højt trusselsniveau og fraværet af budgetbegrænsninger er den stærkeste prædiktor for, om målet nås. Dette bekræftes af @alozious2022, der finder, at 2%-målet har skabt et politisk pres efter 2014, men samtidig også påpeger, at budgetterne udviser betydelig inerti, og at makroøkonomiske faktorer som offentlig gæld hæmmer væksten.
-
-@dorn2024 argumenterer desuden for, at mange europæiske lande har oparbejdet enorme investeringsefterslæb (et defence deficit) siden den kolde krig. Konsekvensen er, at lande langt fra målet nu er tvunget til massive investeringer, ikke kun for at nå 2 %, men for at genopbygge tabt kapacitet. Dette efterslæb begrebsliggøres af @eaglen2025 som et 'NATO Defense Deficit'. De estimerer alliancens samlede, akkumulerede underinvestering siden 2014 til over 2 billioner dollars, hvilket indikerer, at de nuværende budgetstigninger ikke kun er en reaktion på den øjeblikkelige trussel, men en strukturel nødvendighed for at lukke et årtis hul i kapabiliteterne. Her peger @odehnal2021 specifikt på, at landene på NATO’s østlige flanke har øget deres forsvarsudgifter markant for at indhente dette efterslæb og imødegå den akutte trussel.
-
-## Analysens bidrag
-
-Denne opgave adskiller sig fra den eksisterende litteratur ved ikke blot at spørge, om staterne bruger flere penge, men ved empirisk at teste, om *mekanismerne* bag forbruget har ændret sig strukturelt. Som @george2022 indikerer, ændrede krigen fundamentalt efterspørgselskurven for sikkerhed i Europa. Forventningen om en hurtig, kausal budgetreaktion underbygges af @genini2025 og @orenstein2025, der beskriver, hvordan europæisk politik gennemgik en øjeblikkelig 'sikkerhedsliggørelse' umiddelbart efter invasionen. Denne analyse søger at bygge videre på ovenstående fund, ved først at isolere den kausale effekt af 2022-invasionen, og derefter undersøge den heterogene respons, ved at sammenligne koefficienterne for henholdsvis geografisk nærhed og institutionelt pres før og efter 2022. Gennem denne tilgang søger analysen at bidrage med ny viden om, hvorvidt invasionen har transformeret NATO fra en institution drevet af økonomisk free-riding til en alliance drevet af eksistentiel geopolitik, samt om reaktionen på invasionen primært drives af geografiske faktorer, eller om institutionelt pres har en selvstændig effekt.
-
-# Metode
-
-For at besvare problemstillingen og teste de opstillede hypoteser anvender denne opgave et kvantitativt forskningsdesign. Analysen er struktureret omkring en sekventiel to-trins strategi, der kombinerer paneldata- og tværsnits-analyser. I dette afsnit redegører jeg først for det overordnede forskningsdesign og logikken bag valget af metoder. Herefter præsenterer jeg datagrundlaget, efterfulgt af en specifik gennemgang af modellerne, der anvendes i henholdsvis del 1 (kausalitet) og del 2 (korrelation).
-
-## Forskningsdesign: En to-trins tilgang
-
-Inden for samfundsvidenskaben - og særligt i studiet af International Politik - er muligheden for at gennemføre kontrollerede eksperimenter (RCT) stærkt begrænset. Det er ikke muligt at randomisere, hvilke stater der udsættes for krig, eller at skrue tiden tilbage for at observere, hvordan europæiske forsvarsbudgetter ville have udviklet sig, hvis Rusland *ikke* havde invaderet Ukraine i 2022. Dette er en fundamental udfordring for kausal inferens; vi kan observere virkeligheden med invasionen, men den kontrafaktiske virkelighed uden invasionen er uobserverbar.
-
-For at overkomme dette problem og identificere en kausal effekt snarere end blot korrelation, udnytter denne analyse, at invasionen i 2022 kan betragtes som et *naturligt eksperiment* i form af et eksogent chok. Designet bygger på logikken fra *Difference-in-Differences* (DiD), hvor udviklingen i en behandlingsgruppe (europæiske NATO-lande) sammenlignes med udviklingen i en kontrolgruppe af lande, der ikke er direkte påvirket af den sikkerhedspolitiske trussel fra Rusland. Inspireret af Difference-in-Differences, anvender jeg et *event-study* design, som populariseret af @jacobson1993. Formålet med dette er at isolere den gennemsnitlige kausale behandlingseffekt af invasionen (Average Treatment Effect on the Treated, ATT). Yderligere tillader det event-study modeller at estimere invasionens potentielt dynamiske effekt over tid [@miller2023]. Metodens styrke ligger blandt andet i dens evne til visuelt og statistisk at teste antagelsen om parallelle tendenser før invasionen: Hvis behandlings- og kontrolgruppen fulgtes ad før 2022, kan kontrolgruppens udvikling efter 2022 anvendes som et validt estimat for den kontrafaktiske situation, hvilket muliggør en test af H1.
-
-Mens del 1 af analysen kan besvare, om invasionen havde en effekt - samt give indikationen og potentiel heterogenitet - kan den ikke forklare, *hvorfor* effekten er heterogen. Som påpeget i litteraturgennemgangen vil en gennemsnitlig effekt på tværs af Europæiske NATO-lande sandsynligvis dække over store forskelle, nationerne iblandt. Del to anvender derfor tværsnits-OLS regressioner til at afdække denne heterogenitet. Ved at modellere ændringen i forsvarsudgifter som en funktion af landespecifikke karakteristika – såsom geografisk afstand til Rusland (Realisme) og afstand til 2 %-målet (Institutionalisme) – testes H2 og H3. Dette trin går således bag om den gennemsnitlige effekt for at afdække de teoretiske mekanismer, der driver adfærden i den nye sikkerhedspolitiske virkelighed. Det er værd at bemærke at en væsentlig begrænsning ved tværsnits-OLS er, at metoden primært belyser korrelation og ikke kausalitet. Analysens samlede styrke ligger derfor i kombinationen:
-
--   Del 1 etablerer kausalt, om invasionen forårsagede et strukturelt brud i udviklingen i forsvarsudgifter for Europæiske NATO-lande.
--   Del 2 fokuserer på at forstå og forklare en potentiel heterogen effekt landene iblandt.
-
-## Datagrundlag og operationalisering {#sec-datagrundlag-og-operationalisering}
-
-Analysens empiriske fundament udgøres af data for perioden 2014-2025. Den primære afhængige variabel i begge analysedele er forsvarsudgifter opgjort som procentdel af BNP. Da del et inkluderer en global kontrolgruppe, mens del to kun beskæftiger sig med de Europæiske NATO-lande, har jeg besluttet at anvende to komplementære datakilder for den afhængige variabel (se @sec-datakilder-sipri-og-nato). Valget af dette relative mål frem for absolutte tal er truffet af to årsager: For det første muliggør det sammenligning af forsvarsbyrden på tværs af økonomier af vidt forskellig størrelse (f.eks. Estland og Tyskland). For det andet udgør det den operative målestok for NATO’s 2%-målsætning, hvilket gør det til den mest teoretisk relevante variabel for at teste effekten af det institutionelle pres.
-
-Det er dog væsentligt at påpege at da dette mål for forsvarsudgifter er et produkt af BNP, har det en indbygget volatilitet overfor økonomiske udsving. I perioder med økonomisk recession kan forsvarsbyrden stige kunstigt, selvom de nominelle forsvarsudgifter er uændrede, simpelthen fordi BNP falder - omvendt vil økonomisk ekspansion få forsvarsudgifter som procentdel af BNP til at falde, hvis nominelle forsvarsudgifter holdes konstant. Dette er særligt relevant for 2020-21, hvor COVID-19 pandemien forårsagede et globalt BNP-fald. Er man ikke opmærksom på denne nævner-effekt, vil man fejlagtigt drage den konklusion at nationerne i undersøgelsen, valgte at øge deres forsvarsbudget samtidig med at en global pandemi ramte kloden. For at imødegå denne fejlkilde og sikre robusthed anvendes forsvarsudgifter i faste 2023-priser (USD) derfor som en supplerende afhængig variabel. Dette sikrer at jeg kan verificere, at de observerede effekter afspejler reelle investeringer og ikke blot makroøkonomiske udsving. Det supplerende mål for forsvarsudgifter log-transformeres for at muliggøre sammenligning mellem nationer af forskellige økonomiske størrelser - og for at mindske skævhed i dataen.
-
-### Datakilder: SIPRI og NATO {#sec-datakilder-sipri-og-nato}
-
-Til analysens første del (event-study) anvendes data fra Stockholm International Peace Research Institute (SIPRI). SIPRI er valgt, da instituttet leverer konsistente, verificerede data for en bred vifte af lande uden for NATO, hvilket er en forudsætning for at konstruere en valid kontrolgruppe. En begrænsning ved SIPRI er dog, at deres omfattende verifikationsproces betyder, at estimater for 2025 endnu ikke er tilgængelige. Del 1 dækker derfor specifikt perioden 2014-2024.
-
-Til analysens anden del (Tværsnits-OLS) anvendes NATO's egne offielle data. Dette skifte foretages af to strategiske årsager. For det første er det NATO’s egne tal, medlemslandene navigerer efter i forhold til 2 %-målet; eventuelle diskrepanser mellem SIPRI og NATO kunne derfor lede til fejlagtige konklusioner om, hvorvidt et land føler sig presset af målet. For det andet inkluderer NATO's datasæt estimater for 2025, hvilket er afgørende for at fange den fulde effekt af den accellererende oprustning. For at sikre, at det er metodisk forsvarligt at skifte datakilde halvvejs igennem analysen, er der foretaget en korrelationsanalyse for behandlingsgruppen, der viser en korrelation på $r = 0,98$ mellem de to datasæt. @fig-sipri-nato præsenterer den aggregerede udvikling i forsvarsudgifter som procentdel af BNP for de Europæiske NATO-lande, på tværs af de to datasæt. Figuren fungerer samtidig som analysens første indblik i udviklingen før og efter invasionen i 2022, samt en visualisering af den føromtalte nævner-effekt i 2020-21 (se @sec-datagrundlag-og-operationalisering).
-
-```{r}
-#| label: fig-sipri-nato
-#| fig-cap: "Comparison of SIPRI and NATO Data Sources"
-
-# --- Sektion 7: Validation ---
-df_val <- master_panel %>%
-  filter(group == "Behandlet", year >= 2014 & year <= 2025)
-
-# Correlation
-r_val <- cor(
-  df_val$milex_gdp[df_val$year < 2025],
-  df_val$milex_gdp_nato[df_val$year < 2025],
-  use = "complete.obs"
-)
-
-r_text <- number(r_val, accuracy = 0.001, decimal.mark = ",")
-
-# Plot Data
-plot_val <- df_val %>%
-  group_by(year) %>%
-  summarize(
-    SIPRI = mean(milex_gdp, na.rm = TRUE),
-    NATO  = mean(milex_gdp_nato, na.rm = TRUE)
-  ) %>%
-  pivot_longer(cols = c(SIPRI, NATO), names_to = "Kilde", values_to = "pct") %>%
-  filter(!is.na(pct))
-
-# Validation Plot
-ggplot(plot_val, aes(x = year, y = pct, color = Kilde, linetype = Kilde)) +
-  geom_line(linewidth = 1) +
-  scale_color_manual(values = c("SIPRI" = "grey40", "NATO" = "black")) +
-  scale_linetype_manual(values = c("SIPRI" = "solid", "NATO" = "solid")) +
-  scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
-  scale_y_continuous(labels = number_format(accuracy = 0.1, decimal.mark = ",")) +
-  annotate(
-    "text", x = 2016, y = max(plot_val$pct),
-    label = glue("2014-24 korrelation (Pearson r) = {r_text}"),
-    hjust = 0, vjust = 11, family = "IBM Plex Serif", size = 9 / .pt, color = "black"
-  ) +
-  labs(
-    y = "Forsvarsudgifter (% BNP)", x = NULL, color = NULL, linetype = NULL,
-    caption = "Sammenligning af behandlingsgruppens årlige gennemsnit på tværs af datakilder."
-  ) +
-  ba_theme()
-
-```
-
-### Konstruktion af behandlings- og kontrolgruppe
-
-En central metodisk udfordring i Difference-in-Differences relaterede designs er definitionen af behandlings- og kontrolgruppen - især når det eksogene chok (invasionen) potentielt kan have globale konsekvenser. I følgende afsnit beskrives konstruktionen af de to grupper, samt de væsentlige teoretiske overvejelser der har spillet ind.
-
-Behandlingsgruppen defineres formelt som europæiske lande, der har været medlemmer af NATO siden mindst 2014. Kriteriet om at være et europæisk land er valgt ud fra den realistiske antagelse om, at geografisk nærhed til truslen er afgørende for behandlingens intensitet. Kriteriet om NATO-medlemskab siden 2014 sikrer at alle behandlede lande har været udsat for det samme institutionelle pres i hele analyse-perioden. Lande der har tilsluttet sig NATO efter 2014 ekskluderes derfor fra analysen. Grækenland og Tyrkiet ekskluderes ligeledes, da deres forsvarsudgifter primært drives af interne regionale konflikter over Cypern og Ægæerhavet, snarere end den russiske trussel. Disse beslutninger af taget på baggrund af teoretiske overvejelser, a priori. Det eneste land der er ekskluderet fra behandlingsgruppen af data-mæssige årsager er Bulgarien. Den indledende eksplorative analyse afslørede Bulgariens forsvarsudgifter i 2019 som en ekstrem outlier (Z-score: 4.23). I et forsøg på at forstå om dette var en data-fejl eller en reel observation fandt jeg frem til at Bulgarien foretog et historisk stort indkøb af F-16 fly i 2019. På denne baggrund har jeg besluttet at ekskludere Bulgarien, da deres ustabile 2014-21 udvikling er en væsentlig udfordring for antagelsen om parallelle trends - som er afgørende i del ét af analysen.
-
-Kontrolgruppen konstrueres baseret på et primært kriterie om OECD-medlemskab (siden 2014). For at sikre validiteten yderligere, renses denne gruppe for lande med unikke konfliktprofiler, der gør dem usammenlignelige med behandlingsgruppen. Beslutninger om eksludering er taget på baggrund af teoretiske overvejelser, a priori. USA udelades grundet dets status som global hegemon med helt unikke og særlige forpligtelser. Israel udelukkes grundet deres særlige sikkerhedspolitiske situation i Mellemøsten. Desuden udelukkes Mexico - da deres forsvarsudgifter vurderes primært at være drevet af interne kampe med narkokarteller - samt Chile da deres forsvarsudgifter ses som en funktion af regional instabilitet. Den endelige kontrolgruppe består derfor af: Australien, Canada, Irland, Japan, New Zealand, Schweiz, Sydkorea og Østrig. Dette er en relativt lille kontrolgruppe, men til gengæld vurderer jeg at dens validitet er stærk. Det bemærkes, at Canada er NATO-medlem, men indgår i kontrolgruppen, da landet geografisk ikke er europæisk og dermed ikke deler den eksistentielle nærhed til truslen, som vurderes at være en afgørende faktor for behandlingsstatus. Samtidig indgår europæiske lande som Irland, Schweiz og Østrig også i kontrolgruppen, da de ikke er NATO-medlemmer. Denne opdeling muliggør en isolering af den specifikke effekt, for europæiske NATO-lande.
-
-## Kausalitet (Event-Study)
-
-Formålet med analysens første del er at teste **H1**: Om invasionen har haft en kausal effekt på forsvarsudgifterne. Til dette formål specificeres en dynamisk *event-study* model inden for rammen af *Two-Way Fixed Effects* (TWFE). Denne tilgang, som er standarden inden for moderne kausalanalyser (**\@angrist2009**), gør det muligt at kontrollere for uobserveret heterogenitet og fælles tidsmæssige chok, samtidig med at den kortlægger effekten år for år.
-
-Modellen estimerer sammenhængen mellem invasionen og forsvarsudgifterne ved at inkludere to typer af kontroller, der ”renser” estimaterne for støj. For det første inkluderer modellen *lande-faste effekter* (country fixed effects). Disse kontrollerer for alle forhold ved de enkelte lande, der er konstante over tid – eksempelvis geografisk størrelse, strategisk kultur eller historiske alliancerelationer. For det andet inkluderer modellen *tids-faste effekter* (year fixed effects), der kontrollerer for globale chok, som rammer alle lande ens i et givent år – eksempelvis global inflation eller konsekvenserne af COVID-19 pandemien.
-
-Selve event-study elementet konstrueres ved at estimere en række årlige koefficienter, der viser forskellen i forsvarsudgifter mellem behandlings- og kontrolgruppen relativt til et basisår. I tråd med standardpraksis anvendes året før invasionen (2021) som referenceår. Det betyder, at modellens estimater skal fortolkes som ændringen i forskellen mellem NATO-lande og kontrolgruppen set i forhold til situationen umiddelbart før krigen.
-
-### Parallelle trends
-
-For at disse estimater kan tolkes kausalt som effekten af invasionen, må antagelsen om *parallelle trends* være opfyldt. Det indebærer en antagelse om, at hvis Rusland *ikke* havde invaderet Ukraine, ville gennemsnitsudviklingen for NATO-landene have fulgt samme bane som kontrolgruppen.
-
-Metodens styrke er, at den tillader en empirisk vurdering af denne antagelse. Ved at inspicere koefficienterne for årene *før* 2022 kan det testes, om grupperne fulgtes ad inden invasionen. Hvis konfidensintervallerne for 2014-21 estimaterne overlapper nul og er uden systematisk trend, styrker det troværdigheden af, at en eventuel afvigelse efter 2022 skyldes invasionen. Det er her afgørende at skelne mellem individuel og fælles signifikans. Selvom enkelte år kan fremstå insignifikante isoleret set, kan den samlede trend stadig afvige systematisk. Derfor anvendes en Pre-trend F-test (Wald-test) til at teste nulhypotesen om, at *alle* præ-koefficienter fælles er lig nul [@freyaldenhoven2021; @wald1945]. Kun hvis denne nulhypotese ikke kan afvises, anses antagelsen om parallelle trends for statistisk sandsynliggjort. Yderligere beregner jeg uniforme (sup-t) konfidensintervaller [@olea2019]. Som @roth2022 påpeger, bør denne test dog suppleres af visuel inspektion, da lav statistisk styrke kan føre til falske negativer.
-
-Givet den geopolitiske kontekst er der en risiko for, at antagelsen om parallelle trends er udfordret. Som indikeret i litteraturgennemgangen reagerede visse NATO-lande allerede på annekteringen af Krim i 2014, hvilket kan have skabt en svagt stigende tendens i behandlingsgruppen før 2022, som kontrolgruppen ikke deler. Hvis analysen afslører systematiske forskelle i de præ-eksisterende trends, vil en standardmodel risikere at overestimere effekten.
-
-For at imødegå dette inkluderer analysen et metodisk beredskab i form af *gruppe-specifikke lineære tidstrends*, en tilgang populariseret af @autor2003. Ved at inkludere en variabel, der tillader behandlings- og kontrolgruppen at følge hver deres lineære grund-trend, kan modellen rense estimaterne for langsigtede, strukturelle forskelle i vækstrater.
-
-Anvendelsen af denne korrektion kræver dog forsigtighed. Som påpeget af @wolfers2006, kan inklusionen af trends risikere at "absorbere" selve behandlingseffekten, hvis denne udvikler sig gradvist. For at undgå dette vil en eventuel trend-korrektion i denne analyse blive operationaliseret konservativt ved at "ankre" trenden i præ-behandlingsperioden. Dette sikrer, at modellen fjerner den *historiske* trendforskel uden at fjerne den *bratte* ændring, som invasionen forårsager. Valget mellem en standard TWFE-model og en TWFE-model med gruppe-specifikke tendenser træffes på baggrund af resultaterne fra de indledende forudsætningstest diagnostiske tests.
-
-Da beslutninger om forsvarsudgifter er stærkt korrelerede over tid inden for det enkelte land (højt forbrug i år betyder ofte højt forbrug næste år), anvendes klyngede standardfejl på lande-niveau for at korrigere for seriel autokorrelation [@rambachan2025; @bertrand2004].
-
-### Modelvalidering og robusthed
-
-For at sikre, at resultaterne ikke er drevet af modelbrud eller statistiske tilfældigheder, underkastes analysen en række systematiske forudsætnings- og sensitivitetstests.
-
-Først testes validiteten af kontrolgruppen gennem en placebo-in-space test [@abadie2010]. Denne test foretages internt på kontrolgruppen, hvor et enkelt kontrol-lande skiftevis tildeles behandlingsstatus. Denne test tjener to formål: for det første undersøges om kontrolgruppen internt har parallelle trends fra 2014-21, og for det andet tester jeg om modellen finder en effekt efter 2021, for et af kontrollandene - hvor der ingen effekt burde være. Efterfølgende udsættes paneldataen for en test for tværsnitsafhængighed mellem landene, da udviklinger i ét land, potentielt kan påvirke udviklingen i dets nabolande [@pesaran2021]. Den tredje og sidste forudsætningstests der udføres er en test for stationaritet i dataen. Denne test udføres for at teste om forsvarsudgifter følger en stabil linenær trend, eller om der er supriøse sammenhænge i tidsrækkerne [@levin2002].
-
-Efter estimeringen af event-study modellen, udføres to væsentligt sensitivitets. For at teste resultaternes robusthed over for outliers udføres en Leave-One-Out test, hvor modellen re-estimeres ved iterativt at ekskludere ét land ad gangen [@abadie2015]. Dette sikrer, at effekten er et generelt fænomen og ikke blot drevet af en enkelt ekstrem case. Samtidig fungerer det også som en vigtig indsigt i hvor homogen/heterogen effekten af invasionen har været på de Europæiske NATO-lande. Afslutningsvis udfører jeg en permutationstest med 5.000 permutationer (Fisher Randomization) - som anbefalet af @roth2023 - ved at randomisere landenes inddeling i hhv. behandlings- og kontrolgruppen. Dette gøres for at teste om resultaterne af analysen er reelle og unikke, eller om de blot er et produkt af en tilfældig gruppering af lande [@young2019].
-
-## Heterogenitet (Tværsnits-OLS)
-
-Mens analysens første del etablerer det gennemsnitlige kausale brud, har analysens anden del til formål at forklare variationen i dette brud. For at teste H2 (Geografi) og H3 (Institutionelt pres) opstilles to separate tværsnits-modeller baseret på *Ordinary Least Squares* (OLS): én for perioden før invasionen (2014-2021) og én for perioden efter (2021-2025).
-
-Den afhængige variabel i disse modeller er defineret som den totale ændring i forsvarsudgifter (procentpoint af BNP) over den givne periode. Ved at fokusere på ændringen frem for det absolutte niveau isoleres landenes reaktion på den sikkerhedspolitiske situation. For at minimere risikoen for endogenitet (omvendt kausalitet) anvendes en *lagged* specifikation for de uafhængige variabler. Det betyder, at værdierne for de forklarende variabler måles i starten af hver periode (henholdsvis 2014 og 2021). Logikken er, at et lands BNP eller afstand til 2%-målet i 2021 kan påvirke budgetlægningen frem mod 2025, mens det omvendte ikke er muligt.
-
-### Operationalisering af uafhængige variabler {#sec-operationalisering-af-uafhængige-variabler}
-
-Hvor del ét af analysen kun koncentrerer sig om den afhængige variabel, indgår der flere uafhængige og kontrol variabler i del to. For at teste H2 (betydningen af trusselsnærhed) anvendes to operationaliseringer af trusselsnærhed. Den første variabel tager form af en binær dummy-variabel med værdien 1 for lande der deler grænse med Rusland, og 0 nul for lande der ikke gør. Dette er for at undersøge om der er en særlig unik effekt blandt grænser op til Rusland.
-
-Den anden variabel operationaliseres som den korteste geodætiske afstand (fugleflugt) mellem det pågældende NATO-land og enten Moskva eller Minsk (CEPII). Årsagen til at variablen operationaliseres på denne måde, er at jeg har en forventning om at NATO-landene i kontekst af frygten for en invasion, opfatter Hviderusland som en forlængelse af Rusland. Rusland og Hviderusland har et tæt strategisk samarbejde, og der er mange russiske soldater udstationerede i Hviderusland. For mange af landene i min analyse er afstanden til Minsk desuden væsentlig kortere end afstanden til Moskva, og jeg forventer derfor at dette er en mere præcis måde at måle trusselsnærheden på. For at teste om der er væsentlig forskel på denne specifikke operationlisering og en mere simpel "afstand til Moskva" sammenlignes resultater for modeller med hver specifikation.
-
-Yderligere etableres der også en tredje version for afstand som inkluderer Kiev (Ukraine). Idéen med denne tredje operationalisering er at undersøge om det at være tæt på Ukraine i samme grad fører til øgede forsvarsudgifter, hvilket ville være en indikation af at lande tæt på Kiev, frygter en potentiel invasion igennem Ukraine - i tilfælde af at Ukraine taber krigen. De kontinuerlige afstandsmål log-transformeres, for at fange det non-lineære aspekt som flere af kilderne i @sec-litteraturgennemgang har peget på. Beslutningen bekræftes desuden af indledende tests af variablernes funktionelle former. En simpel lineær form havde konsekvent den laveste forklaringskraft og den værste modeltilpasning på tværs af tidsperioderne, mens log-transformering, omvendt-log og omvendt kvadratrod havde næsten identiske karakteristika. Selvom disse tre varierer en smule i deres præcise form, så peger de alle i samme retning; der er større forskel mellem de første 500 km (0-500), end mellem de næste 500 km (500-1.000). Koefficienterne for log-transformeringen er dog de mest intuitive at fortolke, og jeg vælger derfor denne funktionelle form til modellerne.
-
-For at teste H3 (institutionelt pres) konstrueres en variabel, der måler differencen mellem NATO's 2%-mål og hvert lands reelle niveau af forvarsudgifter som procentdel af BNP, i starten af hver periode (2014 og 2021). Denne variabel er *censureret* ved nul, hvilket betyder, at alle værdier over 2 sættes til 0. Dette metodiske valg er truffet ud fra den teoretiske antagelse, at 2%-målet fungerer som et gulv, ikke et loft; et land der for eksempel bruger 2,5% forventes ikke at føle et institutionelt pres for at *sænke* deres udgifter. Uden denne censurering ville modellen fejlagtigt antage, at ”over-compliance” skaber et negativt pres.
-
-Endeligt tilføjes der en række kontrolvariabler til modellerne, for at teste for alternative forklaringer som ikke dækkes af hypoteserne, og for at undgå omitted-variabel-bias. De økonomiske faktorer der kontrolleres for er BNP (log USD), BNP per indbygger (log PPP), Offentlig gæld (% BNP) og BNP-vækst (procentpoint) (IMF WEO). BNP-vækst er en matematisk kontrolvariabel der har det formål at teste om potentielle resultater er drevet af nævner-effekten (se @sec-datagrundlag-og-operationalisering). Yderligere testes der også for om resultaterne er drevet af om hvorvidt lande var en del af Sovjetunionen, samt om antallet af Amerikanske tropper der er til stede i et land har en indflydelse (DMDC). Da jeg har at gøre med et relativt lille N på 22 i tværsnitsanalysen, tilføjes disse kontrolvariabler trinvist for at bevare flest mulige frihedsgrader. Den fulde model vil derfor inkludere BNP (log USD) som den primære kontrolvariablel, og alternative modeller vil blive estimeret hvor BNP (log USD) skiftevis skiftes ud med én af de andre kontrolvariabler.
-
-### Formel hypotesetest
-
-Hypoteserne postulerer ikke blot at de uafhængige variabler er statistisk signifikante, men at forskellen i koefficienterne før og og efter invasionen er signifikant. For at teste hypoteserne formelt anvendes der derfor en Z-test for lighed mellem koefficienter [@paternoster1998]. Kun hvis p-værdien for denne test er under 0,05 accepteres det at nulhypotesen for H2 og H3 kan forkastes.
-
-### Modelvalidering og robusthed
-
-I tråd med del ét af analysen, udsættes OLS modellerne også for en række forudsætnings- og sensitivitetstests. Forudsætninger inkluderer tests for korrelation mellem variablerne, test for normalfordelte residualer [@shapiro1965], test for heteroskedasticitet [@breusch1979], test for misspecifikation [@ramsey1969], en VIF-test for multikollinearitet, samt en test for indflydelsesrige observationer [@cook1977]. Som almindelig praksis anvendes der robuste standardfejl (HC3) i modellerne. Den primære sensitivitetstest for tværsnitsanalysen vil være en Leave-One-Out test for 2021-25 modellen. Grundet det relativt lille N er det afgørende at teste om koefficienternes værdier - og om de er signifikante eller ej - er drevet af enkelte lande. Derudover estimeres de alternative modeller som beskrevet i @sec-operationalisering-af-uafhængige-variabler, for at vurdere om resultaterne er robuste overfor alternative model-specifikationer.
-
-Med teori, hypoteser og metode på plads, præsenterer følgende afsnit analysens fund.
-
-# Analyse
+# Kilder
 
 ## Event-study
 
-### Event-study deskriptiv
+-   origin @jacobson1993
+-   Introduction to Event-Study @miller2023
+-   To address the steeper pre-trend in the treated group, I include group-specific linear time trends following the approach in @autor2003. Also cite this paper for pre-trend F-test.
+-   event-study visualisation best practices @freyaldenhoven2021
+-   meta paper of recent DiD approaches (e.g. suggests perm test) @roth2023
+-   Uniform CIs @olea2019
+-   has a chapter on event-study models/DiD @angrist2015
+-   placebo-in-space @abadie2010
+-   leave-one-out @abadie2015
+-   kritik af pre-trend f-test @roth2022
+-   cluster at the level at which treatment is assigned @rambachan2025
+
+### Synth control (for discussions of alternative methods)
+
+-   basic @abadie2003
+-   synthdid @arkhangelsky2021
+-   generalized @xu2017
+-   augmented @ben-michael2021
+-   
+
+## Statistics
+
+-   LLC test @levin2002
+-   Pesaran CD @pesaran2021
+-   Cook's D @cook1977
+-   Ramsey RESET @ramsey1969
+-   Heteroske @breusch1979
+-   Normality @shapiro1965
+-   permutation @young2019
+
+## OLS
+
+-   z-test coefficients @paternoster1998
+
+## Lignende studier
+
+-   lignende studie der viser betydningen af afstand efter 2014 @kofron2023
+
+## Andet
+
+-   kritik af 2% og forsvarsudgifter som % af BNP @cooper2021
+-   "While Realism explains the *incentive* to spend (the Russian threat), Securitization theory (Buzan et al., 1998, Ch. 2) explains the *political mechanism*. The invasion allowed leaders to frame the security environment as an existential emergency, legitimizing 'extraordinary measures'—such as breaking long-standing budget constraints—that were politically impossible prior to 2022." @buzan1998
+
+## Neoliberal institutionalism
+
+## Free-riding
+
+-   main paper. *Key Quote/Concept to use:* "The larger a nation is, the higher its valuation of the public good, and the greater its share of the costs." This is the academic phrasing of "Free-Riding." @olson1966
+
+-   *Why this matters for Ukraine:* When the threat becomes "territorial defense" (conventional war on the border), defense stops being a vague public good and becomes a **private necessity**. Sandler predicts that when this happens, free-riding *decreases*. This gives you the theoretical leverage to explain why the invasion might have *reduced* the GDP correlation. @sandler1993
+
+-   *The Findings:* Oneal tested the Olson hypothesis and found that while it held true in the early Cold War, it weakened later on. This is a perfect "benchmark" paper to cite to show you are following a standard methodological tradition @oneal1990
+
+-    Since you mention "smaller nations free-ride," it is helpful to cite the "Smart State" strategy. Small states know they can't make a difference militarily, so they specialize or "niche" instead of trying to match the big powers. Small states cannot coerce others with hard power. However, they can gain disproportionate influence by being "Norm Entrepreneurs" or by providing specialized "niche" capabilities that the great powers need (but don't want to build themselves). While classic collective action theory predicts small states will free-ride (Olson & Zeckhauser, 1966), Jakobsen (2009) argues that small states often pursue 'activist' foreign policies to generate influence. By contributing niche capabilities or 'smart' defense, they mitigate the perception of free-riding and secure a voice in alliance decision-making. @jakobsen2009
+
+-   **ore Thesis:** Small states are trapped. If they integrate too much (NATO/EU), they lose autonomy (trapped). If they don't integrate enough, they lose influence and protection (abandoned). **Relevance to H4:** This explains **why** small states might suddenly stop free-riding after 2022. The fear of **abandonment** (US leaving Europe, or Russia attacking) became greater than the desire for autonomy/saving money. They pay the 2% to ensure the US stays. @wivel2005
+
+-   
+
+# Abstract {#sec-abstract}
+
+A wonderful serenity has taken possession of my entire soul, like these sweet mornings of spring which I enjoy with my whole heart. I am alone, and feel the charm of existence in this spot, which was created for the bliss of souls like mine. I am so happy, my dear friend, so absorbed in the exquisite sense of mere tranquil existence, that I neglect my talents. I should be incapable of drawing a single stroke at the present moment; and yet I feel that I never was a greater artist than now.
+
+When, while the lovely valley teems with vapour around me, and the meridian sun strikes the upper surface of the impenetrable foliage of my trees, and but a few stray gleams steal into the inner sanctuary, I throw myself down among the tall grass by the trickling stream; and, as I lie close to the earth, a thousand unknown plants are noticed by me: when I hear the buzz of the little world among the stalks, and grow familiar with the countless indescribable forms of the insects and flies, then I feel the presence of the Almighty, who formed us in his own image, and the breath of that universal love which bears and sustains us, as it floats around us in an eternity of bliss; and then, my friend, when darkness overspreads my eyes, and heaven and earth seem to dwell in my soul and absorb its power, like the form of a beloved mistress, then I often think with longing, Oh, would I could describe these conceptions, could impress upon paper all that is living so full and warm within me, that it might be the mirror of my soul, as my soul is the mirror of the infinite God!
+
+O my friend -- but it is too much for my strength -- I sink under the weight of the splendour of these visions! A wonderful serenity has taken possession of my entire soul, like these sweet mornings of spring which I enjoy with my whole heart. I am alone, and feel the charm of existence in this spot, which was created for the bliss of souls like mine. I am so happy, my dear friend, so absorbed in the exquisite sense of mere tranquil existence, that I neglect my talents. I should be incapable of drawing a single stroke at the present moment; and yet I feel that I never was a greater artist than now. When, while the lovely valley teems with vapour around me, and the meridian sun strikes the upper surface of the impenetrable foliage of my trees, and but a few stray gleams steal into the inner sanctuary, I throw myself
+
+# Introduktion {#sec-introduktion}
+
+# Teori
+
+# Litteratur Review {#sec-litteratur-review}
+
+# Metode {#sec-metode}
 
 ```{r}
 #| label: tbl-es-sum
-#| tbl-cap: "Deskriptiv statistik (event-study) - præ-invasion (2014-21)"
+#| tbl-cap: "Descriptive Statistics (Pre-treatment)"
 
 # 1. Helper functions & SMD Calculation (Same as your script)
 skew <- function(x) as.numeric(psych::skew(x, na.rm = TRUE))
@@ -1289,8 +1153,38 @@ df_final %>%
 ```
 
 ```{r}
+#| label: fig-es-dist-gdp
+#| fig-cap: "Distribution of Defense Spending (% GDP)"
+
+# Manual settings for this variable
+create_distribution_plot(
+  data = pre_panel,
+  var_name = milex_gdp,
+  var_label = "Forsvarsudgifter (% BNP)",
+  manual_breaks = seq(0, 3, by = 0.5),
+  manual_binwidth = 0.25,
+  manual_caption = "Z-scores: Sydkorea 2020 (2,19)."
+)
+
+```
+
+```{r}
+#| label: fig-es-dist-usd
+#| fig-cap: "Distribution of Defense Spending (log USD)"
+
+create_distribution_plot(
+  data = pre_panel,
+  var_name = milex_usd_log,
+  var_label = "Forsvarsudgifter (log USD)",
+  manual_breaks = seq(18, 26, by = 2),
+  manual_binwidth = 1
+)
+
+```
+
+```{r}
 #| label: fig-es-trend-gdp
-#| fig-cap: "Udvikling i forsvarsudgifter (% GDP)"
+#| fig-cap: "Trends in Defense Spending (% GDP)"
 
 ggplot(agg_data, aes(x = year, y = milex_gdp, color = group, group = group)) +
   geom_line(linewidth = 1) +
@@ -1305,7 +1199,7 @@ ggplot(agg_data, aes(x = year, y = milex_gdp, color = group, group = group)) +
 
 ```{r}
 #| label: fig-es-trend-usd
-#| fig-cap: "Udvikling i forsvarsudgifter (log USD)"
+#| fig-cap: "Trends in Defense Spending (log USD)"
 
 ggplot(agg_data, aes(x = year, y = milex_usd_log, color = group, group = group)) +
   geom_line(linewidth = 1) +
@@ -1318,11 +1212,81 @@ ggplot(agg_data, aes(x = year, y = milex_usd_log, color = group, group = group))
 
 ```
 
-### Event-study forudsætninger
+```{r}
+#| label: fig-sipri-nato
+#| fig-cap: "Comparison of SIPRI and NATO Data Sources"
+
+# --- Sektion 7: Validation ---
+df_val <- master_panel %>%
+  filter(group == "Behandlet", year >= 2014 & year <= 2025)
+
+# Correlation
+r_val <- cor(
+  df_val$milex_gdp[df_val$year < 2025],
+  df_val$milex_gdp_nato[df_val$year < 2025],
+  use = "complete.obs"
+)
+
+r_text <- number(r_val, accuracy = 0.001, decimal.mark = ",")
+
+# Plot Data
+plot_val <- df_val %>%
+  group_by(year) %>%
+  summarize(
+    SIPRI = mean(milex_gdp, na.rm = TRUE),
+    NATO  = mean(milex_gdp_nato, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = c(SIPRI, NATO), names_to = "Kilde", values_to = "pct") %>%
+  filter(!is.na(pct))
+
+# Validation Plot
+ggplot(plot_val, aes(x = year, y = pct, color = Kilde, linetype = Kilde)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c("SIPRI" = "grey40", "NATO" = "black")) +
+  scale_linetype_manual(values = c("SIPRI" = "solid", "NATO" = "solid")) +
+  scale_x_continuous(breaks = seq(2014, 2024, by = 2)) +
+  scale_y_continuous(labels = number_format(accuracy = 0.1, decimal.mark = ",")) +
+  annotate(
+    "text", x = 2016, y = max(plot_val$pct),
+    label = glue("2014-24 korrelation (Pearson r) = {r_text}"),
+    hjust = 0, vjust = 11, family = "IBM Plex Serif", size = 9 / .pt, color = "black"
+  ) +
+  labs(
+    y = "Forsvarsudgifter (% BNP)", x = NULL, color = NULL, linetype = NULL,
+    caption = "Sammenligning af behandlingsgruppens årlige gennemsnit på tværs af datakilder."
+  ) +
+  ba_theme()
+
+```
+
+```{r}
+#| label: fig-ridge
+#| fig-cap: "Ridgeline Plot of NATO Defense Spending"
+
+# --- Sektion 8: Ridgeline ---
+master_panel %>%
+  filter(group == "Behandlet", year >= 2014 & year <= 2025) %>%
+  mutate(year_f = factor(year, levels = rev(sort(unique(year))))) %>%
+  drop_na(milex_gdp_nato) %>%
+  ggplot(aes(x = milex_gdp_nato, y = year_f, fill = after_stat(x))) +
+  ggridges::geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  geom_vline(xintercept = 2.0, linetype = "dashed", color = "black") +
+  scale_fill_gradientn(
+    colors = c("#ffba08", "#f48c06", "#dc2f02", "#9d0208", "#370617", "black"),
+    values = rescale(c(0, 1, 2, 3, 5), from = c(0, 5)),
+    limits = c(0, 5)
+  ) +
+  scale_x_continuous(breaks = seq(0, 5, by = 1), limits = c(0, 5)) +
+  coord_cartesian(clip = "off") +
+  ba_theme() +
+  theme(legend.position = "none", plot.margin = margin(t = 1)) +
+  labs(x = "Forsvarsudgifter (% BNP)", y = NULL)
+
+```
 
 ```{r}
 #| label: fig-es-placebo-gdp
-#| fig-cap: "Placebo-in-space event-study test - forsvarsudgifter (% BNP)"
+#| fig-cap: "Placebo-in-Space Test: Forsvarsudgifter (% BNP)"
 #| results: false
 
 # --- Placebo Test: GDP ---
@@ -1370,244 +1334,8 @@ ggplot(plot_data_control, aes(x = event_time_num, y = estimate)) +
 ```
 
 ```{r}
-#| label: tbl-es-csd
-#| tbl-cap: "Test for tværsnitsafhængighed (Pesaran's CD)"
-
-# --- Section 4: CSD Test ---
-cd_results <- map_dfr(names(VARS_TO_TEST), function(var_code) {
-  data_clean <- pre_treat_df %>% select(iso3c, year, treat_dummy, all_of(var_code))
-  
-  get_cd_pval <- function(f) {
-    mod <- feols(as.formula(f), data = data_clean)
-    pd <- pdata.frame(data_clean %>% mutate(r = residuals(mod)), index = c("iso3c", "year"))
-    pcdtest(r ~ 1, data = pd)$p.value
-  }
-  
-  tibble(
-    variable = VARS_TO_TEST[var_code],
-    # We still need decimal.mark="," here because style_pvalue creates text strings
-    p_val_base = style_pvalue(get_cd_pval(glue("{var_code} ~ 1 | iso3c + year")), digits = 3, decimal.mark = ","),
-    p_val_main = style_pvalue(get_cd_pval(glue("{var_code} ~ i(treat_dummy, year, ref=0) | iso3c + year")), digits = 3, decimal.mark = ",")
-  )
-})
-
-# Render Table (Theme handles escaping!)
-cd_results %>%
-  rename(
-    " "= variable,
-    "TWFE (p)" = p_val_base,
-    "TWFE + gruppetendenser (p)" = p_val_main
-  ) %>%
-  tt(
-    width = c(0.35, 0.20, 0.45),
-    notes = list(
-      "a" = list(i = 0, j = 3, text = "Inkluderer en gruppespecifik lineær tidstendens for behandlingsgruppen."),
-      "H₀: Tværsnitsuafhængighed. En p-værdi < 0,05 indikerer tværsnitsafhængighed."
-    )
-  ) %>%
-  style_tt(j = 2:3, align = "r") %>%
-  ba_tiny_theme()
-
-```
-
-```{r}
-#| label: tbl-es-llc
-#| tbl-cap: "Test for stationaritet (Levin-Lin-Chu)"
-
-# --- Section 5: LLC Test ---
-llc_results <- map_dfr(names(VARS_TO_TEST), function(var_code) {
-  p_data_bal <- pre_treat_df %>%
-    select(iso3c, year, all_of(var_code)) %>%
-    pdata.frame(index = c("iso3c", "year")) %>%
-    make.pbalanced(balance.type = "shared.individuals")
-  
-  map_dfr(c("intercept", "trend"), function(spec_type) {
-    test_res <- purtest(object = p_data_bal[[var_code]], test = "levinlin", exo = spec_type, lags = 0)
-    tibble(
-      variable = VARS_TO_TEST[var_code],
-      spec = spec_type,
-      p.value = as.numeric(test_res$statistic$p.value)
-    )
-  })
-})
-
-# Reshape & Format
-llc_table_data <- llc_results %>%
-  pivot_wider(names_from = spec, values_from = p.value) %>%
-  mutate(across(c(intercept, trend), ~style_pvalue(.x, digits = 3, decimal.mark = ",")))
-
-# Render Table (Theme handles escaping!)
-llc_table_data %>%
-  rename(
-    " " = variable,
-    "Konstantled (p)" = intercept,
-    "Konstantled + tidstendens (p)" = trend
-  ) %>%
-  tt(
-    width = c(0.35, 0.23, 0.42),
-    notes = list("H₀: Serierne er ikke-stationære (har enhedsrødder). En p-værdi < 0,05 indikerer stationaritet.")
-  ) %>%
-  style_tt(j = 2:3, align = "r") %>%
-  ba_tiny_theme()
-
-```
-
-### Event-study resultater
-
-```{r}
-#| label: fig-es-group-gdp
-#| fig-cap: "Event-study - forsvarsudgifter (% BNP), gruppentendens-model"
-#| results: false
-
-res_gdp_trend <- run_event_study(es_panel, "milex_gdp", "main")
-res_gdp_trend$plot
-
-```
-
-```{r}
-#| label: tbl-es-group-gdp
-#| tbl-cap: "Event-study - forsvarsudgifter (% BNP), gruppentendens-model"
-
-res_gdp_trend$table %>%
-  select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
-  mutate(
-    estimate  = style_number(estimate, digits = 3, decimal.mark = ","),
-    std.error = style_number(std.error, digits = 3, decimal.mark = ","),
-    ci_str    = glue("[{style_number(conf.low, 3, decimal.mark=',')}; {style_number(conf.high, 3, decimal.mark=',')}]"),
-    p.value   = style_pvalue(p.value, digits = 3, decimal.mark = ",")
-  ) %>%
-  select(label, estimate, std.error, ci_str, p.value) %>%
-  rename("År" = label, "ATT" = estimate, "Std. fejl" = std.error, "95% KI" = ci_str, "p-værdi" = p.value) %>%
-  tt(
-    width = c(0.14, 0.19, 0.19, 0.29, 0.19),
-    notes = list(glue("Obs.: {res_gdp_trend$n_obs}. Pre-trend F-test (p): {style_pvalue(res_gdp_trend$p_pre, 3, decimal.mark=',')}."))
-  ) %>%
-  style_tt(j = 2:5, align = "r") %>%
-  ba_tiny_theme()
-
-```
-
-```{r}
-#| label: fig-es-group-usd
-#| fig-cap: "Event-Study - forsvarsudgifter (log USD), gruppentendens-model"
-#| results: false
-
-res_usd_trend <- run_event_study(es_panel, "milex_usd_log", "main")
-res_usd_trend$plot
-
-```
-
-```{r}
-#| label: tbl-es-group-usd
-#| tbl-cap: "Event-Study - forsvarsudgifter (log USD), gruppentendens-model"
-
-res_usd_trend$table %>%
-  select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
-  mutate(
-    estimate  = style_number(estimate, digits = 3, decimal.mark = ","),
-    std.error = style_number(std.error, digits = 3, decimal.mark = ","),
-    ci_str    = glue("[{style_number(conf.low, 3, decimal.mark=',')}; {style_number(conf.high, 3, decimal.mark=',')}]"),
-    p.value   = style_pvalue(p.value, digits = 3, decimal.mark = ",")
-  ) %>%
-  select(label, estimate, std.error, ci_str, p.value) %>%
-  rename("År" = label, "ATT" = estimate, "Std. fejl" = std.error, "95% KI" = ci_str, "p-værdi" = p.value) %>%
-  tt(
-    width = c(0.14, 0.19, 0.19, 0.29, 0.19),
-    notes = list(glue("Obs.: {res_usd_trend$n_obs}. Pre-trend F-test (p): {style_pvalue(res_usd_trend$p_pre, 3, decimal.mark=',')}."))
-  ) %>%
-  style_tt(j = 2:5, align = "r") %>%
-  ba_tiny_theme()
-
-```
-
-```{r}
-#| label: fig-es-diag-gdp
-#| fig-cap: "Rekonstrueret gruppetendens - forsvarsudgifter (% BNP)"
-
-# Diagnostic plot is only available for trend model
-res_gdp_trend$diag_plot
-
-```
-
-### Event-study sensitivitet
-
-```{r}
-#| label: fig-es-loo-gdp
-#| fig-cap: "Leave-one-out event-study test - forsvarsudgifter (% BNP)"
-#| fig-asp: 0.9
-
-plot_df <- final_df_gdp %>%
-  filter(dropped_unit != "Baseline") %>%
-  mutate(dropped_unit = fct_reorder(dropped_unit, estimate_att_2024, .desc = TRUE))
-
-ggplot(plot_df, aes(x = estimate_att_2024, y = dropped_unit)) +
-  geom_vline(xintercept = base_att_2024_gdp, color = "grey40", linetype = "dashed") +
-  geom_point(aes(color = group), size = 2.5) +
-  scale_color_project_qual(name = NULL) +
-  # --- FIX: Force exactly 3 decimals ---
-  scale_x_continuous(labels = scales::label_number(accuracy = 0.001, decimal.mark = ",")) +
-  labs(
-    x = "2024 ATT", y = NULL,
-    caption = "Stiplet linje indikerer reel 2024 ATT.\nPre-trend F-test er insignifikant (p > 0,05) og 2024 ATT er signifikant (p < 0,05) på tværs af samtlige udeladelser."
-  ) +
-  ba_theme() +
-  theme(
-    panel.grid.major.y = element_line(),
-    legend.position = c(0, -0.04),
-    legend.direction = "horizontal"
-    )
-
-```
-
-## OLS
-
-### OLS deskriptiv
-
-### OLS forudsætninger
-
-### OLS resultater
-
-### OLS sensitivitet
-
-# Diskussion
-
-# Konklusion
-
-# Appendiks
-
-```{r}
-#| label: fig-es-dist-gdp
-#| fig-cap: "Distribuering - forsvarsudgifter (% GDP), præ-invasion (2014-21)"
-
-# Manual settings for this variable
-create_distribution_plot(
-  data = pre_panel,
-  var_name = milex_gdp,
-  var_label = "Forsvarsudgifter (% BNP)",
-  manual_breaks = seq(0, 3, by = 0.5),
-  manual_binwidth = 0.25,
-  manual_caption = "Z-scores: Sydkorea 2020 (2,19)."
-)
-
-```
-
-```{r}
-#| label: fig-es-dist-usd
-#| fig-cap: "Distribuering - forsvarsudgifter (log USD), præ-invasion (2014-21)"
-
-create_distribution_plot(
-  data = pre_panel,
-  var_name = milex_usd_log,
-  var_label = "Forsvarsudgifter (log USD)",
-  manual_breaks = seq(18, 26, by = 2),
-  manual_binwidth = 1
-)
-
-```
-
-```{r}
 #| label: fig-es-placebo-usd
-#| fig-cap: "Placebo-in-space event-study test - forsvarsudgifter (log USD)"
+#| fig-cap: "Placebo-in-Space Test: Forsvarsudgifter (log USD)"
 #| results: false
 
 # --- Placebo Test: USD ---
@@ -1650,8 +1378,91 @@ ggplot(plot_data_control, aes(x = event_time_num, y = estimate)) +
 ```
 
 ```{r}
+#| label: tbl-es-csd
+#| tbl-cap: "Test for Tværsnitsafhængighed (Pesaran's CD)"
+
+# --- Section 4: CSD Test ---
+cd_results <- map_dfr(names(VARS_TO_TEST), function(var_code) {
+  data_clean <- pre_treat_df %>% select(iso3c, year, treat_dummy, all_of(var_code))
+  
+  get_cd_pval <- function(f) {
+    mod <- feols(as.formula(f), data = data_clean)
+    pd <- pdata.frame(data_clean %>% mutate(r = residuals(mod)), index = c("iso3c", "year"))
+    pcdtest(r ~ 1, data = pd)$p.value
+  }
+  
+  tibble(
+    variable = VARS_TO_TEST[var_code],
+    # We still need decimal.mark="," here because style_pvalue creates text strings
+    p_val_base = style_pvalue(get_cd_pval(glue("{var_code} ~ 1 | iso3c + year")), digits = 3, decimal.mark = ","),
+    p_val_main = style_pvalue(get_cd_pval(glue("{var_code} ~ i(treat_dummy, year, ref=0) | iso3c + year")), digits = 3, decimal.mark = ",")
+  )
+})
+
+# Render Table (Theme handles escaping!)
+cd_results %>%
+  rename(
+    " "= variable,
+    "TWFE (p)" = p_val_base,
+    "TWFE + gruppetendenser (p)" = p_val_main
+  ) %>%
+  tt(
+    width = c(0.35, 0.20, 0.45),
+    notes = list(
+      "a" = list(i = 0, j = 3, text = "Inkluderer en gruppespecifik lineær tidstendens for behandlingsgruppen."),
+      "H₀: Tværsnitsuafhængighed. En p-værdi < 0,05 indikerer tværsnitsafhængighed."
+    )
+  ) %>%
+  style_tt(j = 2:3, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: tbl-es-llc
+#| tbl-cap: "Test for Stationaritet (Levin-Lin-Chu)"
+
+# --- Section 5: LLC Test ---
+llc_results <- map_dfr(names(VARS_TO_TEST), function(var_code) {
+  p_data_bal <- pre_treat_df %>%
+    select(iso3c, year, all_of(var_code)) %>%
+    pdata.frame(index = c("iso3c", "year")) %>%
+    make.pbalanced(balance.type = "shared.individuals")
+  
+  map_dfr(c("intercept", "trend"), function(spec_type) {
+    test_res <- purtest(object = p_data_bal[[var_code]], test = "levinlin", exo = spec_type, lags = 0)
+    tibble(
+      variable = VARS_TO_TEST[var_code],
+      spec = spec_type,
+      p.value = as.numeric(test_res$statistic$p.value)
+    )
+  })
+})
+
+# Reshape & Format
+llc_table_data <- llc_results %>%
+  pivot_wider(names_from = spec, values_from = p.value) %>%
+  mutate(across(c(intercept, trend), ~style_pvalue(.x, digits = 3, decimal.mark = ",")))
+
+# Render Table (Theme handles escaping!)
+llc_table_data %>%
+  rename(
+    " " = variable,
+    "Konstantled (p)" = intercept,
+    "Konstantled + tidstendens (p)" = trend
+  ) %>%
+  tt(
+    width = c(0.35, 0.23, 0.42),
+    notes = list("H₀: Serierne er ikke-stationære (har enhedsrødder). En p-værdi < 0,05 indikerer stationaritet.")
+  ) %>%
+  style_tt(j = 2:3, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
 #| label: fig-es-twfe-gdp
-#| fig-cap: "Event-study - forsvarsudgifter (% BNP), TWFE-model"
+#| fig-cap: "Event-Study: Forsvarsudgifter (% BNP) - TWFE Model"
 #| results: false
 
 # Run Analysis
@@ -1664,7 +1475,7 @@ res_gdp_base$plot
 
 ```{r}
 #| label: tbl-es-twfe-gdp
-#| tbl-cap: "Event-study - forsvarsudgifter (% BNP), TWFE-model"
+#| tbl-cap: "Event-Study Estimater: Forsvarsudgifter (% BNP)"
 
 # Create Table Data
 res_gdp_base$table %>%
@@ -1690,8 +1501,50 @@ res_gdp_base$table %>%
 ```
 
 ```{r}
+#| label: fig-es-group-gdp
+#| fig-cap: "Event-Study: Forsvarsudgifter (% BNP) - Korrigeret for Gruppetendenser"
+#| results: false
+
+res_gdp_trend <- run_event_study(es_panel, "milex_gdp", "main")
+res_gdp_trend$plot
+
+```
+
+```{r}
+#| label: tbl-es-group-gdp
+#| tbl-cap: "MAIN EVENT STUDY"
+
+res_gdp_trend$table %>%
+  select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
+  mutate(
+    estimate  = style_number(estimate, digits = 3, decimal.mark = ","),
+    std.error = style_number(std.error, digits = 3, decimal.mark = ","),
+    ci_str    = glue("[{style_number(conf.low, 3, decimal.mark=',')}; {style_number(conf.high, 3, decimal.mark=',')}]"),
+    p.value   = style_pvalue(p.value, digits = 3, decimal.mark = ",")
+  ) %>%
+  select(label, estimate, std.error, ci_str, p.value) %>%
+  rename("År" = label, "ATT" = estimate, "Std. fejl" = std.error, "95% KI" = ci_str, "p-værdi" = p.value) %>%
+  tt(
+    width = c(0.14, 0.19, 0.19, 0.29, 0.19),
+    notes = list(glue("Obs.: {res_gdp_trend$n_obs}. Pre-trend F-test (p): {style_pvalue(res_gdp_trend$p_pre, 3, decimal.mark=',')}."))
+  ) %>%
+  style_tt(j = 2:5, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
+#| label: fig-es-diag-gdp
+#| fig-cap: "Diagnostik: Rekonstrueret Trend (GDP)"
+
+# Diagnostic plot is only available for trend model
+res_gdp_trend$diag_plot
+
+```
+
+```{r}
 #| label: fig-es-twfe-usd
-#| fig-cap: "Event-study - forsvarsudgifter (log USD), TWFE-model"
+#| fig-cap: "Event-Study: Forsvarsudgifter (log USD) - TWFE Model"
 #| results: false
 
 # Run Analysis
@@ -1704,7 +1557,7 @@ res_usd_base$plot
 
 ```{r}
 #| label: tbl-es-twfe-usd
-#| tbl-cap: "Event-study - forsvarsudgifter (log USD), TWFE-model"
+#| tbl-cap: "Event-Study Estimater: Forsvarsudgifter (log USD)"
 
 # Create Table Data
 res_usd_base$table %>%
@@ -1730,8 +1583,41 @@ res_usd_base$table %>%
 ```
 
 ```{r}
+#| label: fig-es-group-usd
+#| fig-cap: "Event-Study: Forsvarsudgifter (log USD) - Korrigeret for Gruppetendenser"
+#| results: false
+
+res_usd_trend <- run_event_study(es_panel, "milex_usd_log", "main")
+res_usd_trend$plot
+
+```
+
+```{r}
+#| label: tbl-es-group-usd
+#| tbl-cap: "MAIN EVENT STUDY"
+
+res_usd_trend$table %>%
+  select(label, estimate, std.error, conf.low, conf.high, p.value) %>%
+  mutate(
+    estimate  = style_number(estimate, digits = 3, decimal.mark = ","),
+    std.error = style_number(std.error, digits = 3, decimal.mark = ","),
+    ci_str    = glue("[{style_number(conf.low, 3, decimal.mark=',')}; {style_number(conf.high, 3, decimal.mark=',')}]"),
+    p.value   = style_pvalue(p.value, digits = 3, decimal.mark = ",")
+  ) %>%
+  select(label, estimate, std.error, ci_str, p.value) %>%
+  rename("År" = label, "ATT" = estimate, "Std. fejl" = std.error, "95% KI" = ci_str, "p-værdi" = p.value) %>%
+  tt(
+    width = c(0.14, 0.19, 0.19, 0.29, 0.19),
+    notes = list(glue("Obs.: {res_usd_trend$n_obs}. Pre-trend F-test (p): {style_pvalue(res_usd_trend$p_pre, 3, decimal.mark=',')}."))
+  ) %>%
+  style_tt(j = 2:5, align = "r") %>%
+  ba_tiny_theme()
+
+```
+
+```{r}
 #| label: fig-es-diag-usd
-#| fig-cap: "Rekonstrueret gruppetendens - forsvarsudgifter (log USD)"
+#| fig-cap: "Diagnostik: Rekonstrueret Trend (GDP)"
 
 # Diagnostic plot is only available for trend model
 res_usd_trend$diag_plot
@@ -1763,7 +1649,7 @@ slope_df %>%
 
 ```{r}
 #| label: tbl-es-loo-gdp
-#| tbl-cap: "Leave-one-out event-study test - forsvarsudgifter (% BNP)"
+#| tbl-cap: "Leave-One-Out Sensitivitet: Forsvarsudgifter (% BNP)"
 
 # Create Table
 final_df_gdp %>%
@@ -1798,8 +1684,36 @@ final_df_gdp %>%
 ```
 
 ```{r}
+#| label: fig-es-loo-gdp
+#| fig-cap: "Leave-One-Out Plot: Forsvarsudgifter (% BNP)"
+#| fig-asp: 0.9
+
+plot_df <- final_df_gdp %>%
+  filter(dropped_unit != "Baseline") %>%
+  mutate(dropped_unit = fct_reorder(dropped_unit, estimate_att_2024, .desc = TRUE))
+
+ggplot(plot_df, aes(x = estimate_att_2024, y = dropped_unit)) +
+  geom_vline(xintercept = base_att_2024_gdp, color = "grey40", linetype = "dashed") +
+  geom_point(aes(color = group), size = 2.5) +
+  scale_color_project_qual(name = NULL) +
+  # --- FIX: Force exactly 3 decimals ---
+  scale_x_continuous(labels = scales::label_number(accuracy = 0.001, decimal.mark = ",")) +
+  labs(
+    x = "2024 ATT", y = NULL,
+    caption = "Stiplet linje indikerer reel 2024 ATT.\nPre-trend F-test er insignifikant (p > 0,05) og 2024 ATT er signifikant (p < 0,05) på tværs af samtlige udeladelser."
+  ) +
+  ba_theme() +
+  theme(
+    panel.grid.major.y = element_line(),
+    legend.position = c(0, -0.04),
+    legend.direction = "horizontal"
+    )
+
+```
+
+```{r}
 #| label: tbl-es-loo-usd
-#| tbl-cap: "Leave-one-out event-study test - forsvarsudgifter (log USD)"
+#| tbl-cap: "Leave-One-Out Sensitivitet: Forsvarsudgifter (% BNP)"
 
 # Create Table
 final_df_usd %>%
@@ -1835,7 +1749,7 @@ final_df_usd %>%
 
 ```{r}
 #| label: fig-es-loo-usd
-#| fig-cap: "Leave-One-Out Plot: Forsvarsudgifter (log USD)"
+#| fig-cap: "Leave-One-Out Plot: Forsvarsudgifter (% BNP)"
 #| fig-asp: 0.9
 
 plot_df <- final_df_usd %>%
@@ -1912,11 +1826,9 @@ ggplot(plot_df, aes(x = stats)) +
 
 ```
 
-# HER BEGYNDER OLS TING
-
 ```{r}
 #| label: tbl-ols-sum
-#| tbl-cap: "Deskriptiv statistisk (OLS)"
+#| tbl-cap: "Deskriptiv Statistik (OLS Data)"
 
 # 1. Prepare Data & Metadata
 var_meta <- enframe(VARS_FOR_OLS, name = "var_code", value = "label") %>%
@@ -2739,6 +2651,14 @@ data_with_resid %>%
 
 ```
 
+# Analyse {#sec-analyse}
+
+# Diskussion {#sec-diskussion}
+
+# Konklusion {#sec-konklusion}
+
+# Appendiks {#sec-appendiks}
+
 # Referencer {#sec-referencer}
 
-Antal sider i alt: 1.662
+Antal sider i alt: XXX
